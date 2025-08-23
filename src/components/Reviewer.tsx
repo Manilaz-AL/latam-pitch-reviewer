@@ -7,7 +7,7 @@ import React, { useEffect, useMemo, useState } from "react";
 // Feature: Valuation card shows company valuation context AND the Ask.
 // Investor table: LinkedIn link, Why a good match, and a visual Match icon.
 
-// ================= Small helpers =================
+// ====================== Small helpers ======================
 type Lang = "ES" | "EN";
 
 /** Clamp a number between a..b */
@@ -21,7 +21,6 @@ const S = (v: unknown): string => (v == null ? "" : String(v));
 export function stableLang(v: unknown): Lang {
   return String(v ?? "EN").toUpperCase().startsWith("ES") ? "ES" : "EN";
 }
-
 
 
 const LBL = {
