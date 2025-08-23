@@ -183,22 +183,11 @@ export function parseDetailed(md: string): { segments: Array<{ name: string; sco
   let inTable = false;
   for (const ln of lines) {
     if (/^\|/.test(ln) && !/^-{3,}/.test(ln)) {
-      inTable = true;
-      const cells = ln.split("|").map((s) => s.trim());
-      if (cells.length >= 4 && !/^(-{3,}|Bucket|Sección|--------)/i.test(cells[1])) {
-        const name = cells[1];
-        const bullets: string[] = String(raw)
-  .split(/<br\s*\/?>/i)
-  .map(x => x.trim())
-  .filter((x): x is string => Boolean(x));
-
-const lane: Lanes = { good: [], missing: [], importance: [], value: [] };
-        }
-        out.segments.push({ name, score, lanes: lane });
-      }
-    } else if (inTable && ln.trim() === "") {
-      break;
-    }
+  // … compute name/score/lanes …
+  out.segments.push({ name, score, lanes: lane });
+} else if (inTable && ln.trim() === "") {
+  break;
+}
   }
   const missIdx = lines.findIndex((l) => /\*\*\s*(What\'s|What’s|Qué)\b/i.test(l));
   if (missIdx !== -1) {
