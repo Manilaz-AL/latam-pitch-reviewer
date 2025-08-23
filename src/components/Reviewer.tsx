@@ -175,33 +175,77 @@ export function toMarkdown(r: { general?: string; detailed?: string } | null): s
   return `# Pitch-Deck Review\n\n${S(r.general).replace(/> /g, "")}\n\n${S(r.detailed)}`;
 }
 
+type Lanes = { good: string[]; missing: string[]; importance: string[]; value: string[] };
+type Segment = { name: string; score: number; lanes: Lanes };
+type Parsed = { segments: Segment[]; missing: Array<{ section: string; why: string }> };
+
 // Parse the markdown table above into segments & missing rows
-export function parseDetailed(md: string): { segments: Array<{ name: string; score: number; lanes: { good: string[]; missing: string[]; importance: string[]; value: string[] } }>; missing: Array<{ section: string; why: string }> } {
-  const out = { segments: [], missing: [] };
+export function parseDetailed(md: string): Parsed {
+  const out: Parsed = { segments: [], missing: [] };
   if (!md) return out;
-  const lines = S(md).split(/\r?\n/);
-  let inTable = false;
+
+  const lines = String(md).split(/\r?\n/);
+
+  // ---- main table (segments)
   for (const ln of lines) {
-    if (/^\|/.test(ln) && !/^-{3,}/.test(ln)) {
-  // … compute name/score/lanes …
-  out.segments.push({ name, score, lanes: lane });
-} else if (inTable && ln.trim() === "") {
-  break;
-}
+    const isRow = /^\|/.test(ln) && !/^-{3,}/.test(ln); // <— derive row-ness per line
+
+    if (isRow) {
+      const cells = ln.split("|").map((s) => s.trim());
+      if (cells.length >= 4 && !/^(-{3,}|Bucket|Sección|--------)/i.test(cells[1])) {
+        const name = cells[1];
+        const raw = cells[cells.length - 2] || "";
+        const score = Math.max(0, Math.min(10, parseInt(cells[2], 10) || 0));
+
+        const bullets = String(raw)
+          .split(/<br\s*\/?>/i)
+          .map((x) => x.trim())
+          .filter(Boolean);
+
+        const lane: Lanes = { good: [], missing: [], importance: [], value: [] };
+        for (const b of bullets) {
+          const t = b.replace(/\*\*/g, "").trim();
+          if (/^(Why:|Por qué:)/i.test(t)) {
+            lane.good.push(t.replace(/^(Why:|Por qué:)\s*/i, "").trim());
+          } else if (/^(Improvement:|Mejora:)/i.test(t)) {
+            lane.missing.push(t.replace(/^(Improvement:|Mejora:)\s*/i, "").trim());
+          } else if (/^(Why investors care:|Por qué importa:)/i.test(t)) {
+            lane.importance.push(t.replace(/^(Why investors care:|Por qué importa:)\s*/i, "").trim());
+          } else if (/^(Example:|Ejemplo:)/i.test(t)) {
+            lane.value.push(t.replace(/^(Example:|Ejemplo:)\s*/i, "").trim());
+          } else {
+            lane.good.push(t);
+          }
+        }
+
+        out.segments.push({ name, score, lanes: lane });
+      }
+    } else if (ln.trim() === "") {
+      // we walked past the table block
+      break;
+    }
   }
-  const missIdx = lines.findIndex((l) => /\*\*\s*(What\'s|What’s|Qué)\b/i.test(l));
+
+  // ---- "What's missing" table
+  const missIdx = lines.findIndex((l) => /\*\*\s*(What's|What’s|Qué)\b/i.test(l));
   if (missIdx !== -1) {
     for (let i = missIdx + 1; i < lines.length; i++) {
       const l = lines[i];
-      if (/^\|/.test(l) && !/^-{3,}/.test(l)) {
+      const isRow = /^\|/.test(l) && !/^-{3,}/.test(l);
+      if (isRow) {
         const c = l.split("|").map((s) => s.trim());
-        if (c.length >= 3 && !/^(-{3,}|Section|Sección|---------)/i.test(c[1]))
+        if (c.length >= 3 && !/^(-{3,}|Section|Sección|---------)/i.test(c[1])) {
           out.missing.push({ section: c[1], why: c[2] });
+        }
+      } else if (l.trim() === "") {
+        break;
       }
     }
   }
+
   return out;
 }
+
 
 export function enrichSegments(segments: Array<{ name: string; score: number; lanes: { good?: string[]; missing?: string[]; importance?: string[]; value?: string[] } }>, lang: string = "ES") {
   const L = stableLang(lang);
