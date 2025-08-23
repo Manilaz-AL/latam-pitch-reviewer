@@ -8,10 +8,10 @@ import React, { useEffect, useMemo, useState } from "react";
 // Investor table: LinkedIn link, Why a good match, and a visual Match icon.
 
 // ======================= Small helpers =======================
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const S = (v) => (v == null ? "" : String(v));
+const clamp = (v: number, a: number, b: number): number => Math.max(a, Math.min(b, v));
+const S = (v: unknown): string => (v == null ? "" : String(v));
 // Robust language normalizer: returns only "ES" or "EN"; defaults to EN for unknowns
-export function stableLang(v) {
+export function stableLang(v: unknown): "ES" | "EN" {
   const t = S(v).trim().toUpperCase();
   if (t.startsWith("ES")) return "ES";
   if (t.startsWith("EN")) return "EN";
@@ -102,7 +102,7 @@ const LBL = {
 };
 
 // Lightweight context extraction from filename (to personalize output without backend)
-export function contextFromName(name = "") {
+export function contextFromName(name: string = ""): { sector: string; country: string; stage: string } {
   const s = name.toLowerCase();
   const sector = /fintech|bank|wallet|payments|pay|loan|credit/.test(s)
     ? "Fintech"
@@ -131,7 +131,7 @@ export function contextFromName(name = "") {
 }
 
 // Demo review (used client‑side)
-export function genMock(lang, ctx) {
+export function genMock(lang: string, ctx?: { sector?: string; country?: string }): { score: number; stage: string; general: string; detailed: string } {
   const ES = stableLang(lang) === "ES";
   const seg = ctx?.sector || "General";
   const geo = ctx?.country || "LATAM";
@@ -148,13 +148,13 @@ export function genMock(lang, ctx) {
   };
 }
 
-export function toMarkdown(r) {
+export function toMarkdown(r: { general?: string; detailed?: string } | null): string {
   if (!r) return "";
   return `# Pitch-Deck Review\n\n${S(r.general).replace(/> /g, "")}\n\n${S(r.detailed)}`;
 }
 
 // Parse the markdown table above into segments & missing rows
-export function parseDetailed(md) {
+export function parseDetailed(md: string): { segments: Array<{ name: string; score: number; lanes: { good: string[]; missing: string[]; importance: string[]; value: string[] } }>; missing: Array<{ section: string; why: string }> } {
   const out = { segments: [], missing: [] };
   if (!md) return out;
   const lines = S(md).split(/\r?\n/);
@@ -200,7 +200,7 @@ export function parseDetailed(md) {
   return out;
 }
 
-export function enrichSegments(segments, lang = "ES") {
+export function enrichSegments(segments: Array<{ name: string; score: number; lanes: { good?: string[]; missing?: string[]; importance?: string[]; value?: string[] } }>, lang: string = "ES") {
   const L = stableLang(lang);
   const add = (arr, ...items) => items.forEach((it) => it && arr.length < 3 && arr.push(it));
   return segments.map((s) => {
@@ -237,7 +237,7 @@ export function enrichSegments(segments, lang = "ES") {
   });
 }
 
-export function deriveSummaryBullets(segments) {
+export function deriveSummaryBullets(segments: Array<{ name: string; score: number; lanes?: { missing?: string[]; good?: string[]; importance?: string[]; value?: string[] } }>): string[] {
   if (!Array.isArray(segments) || segments.length === 0) return [];
   const sorted = segments.slice().sort((a, b) => (a.score || 0) - (b.score || 0));
   const out = [];
@@ -251,7 +251,7 @@ export function deriveSummaryBullets(segments) {
   return out;
 }
 
-export function deriveKeyFacts(segments, lang = "ES") {
+export function deriveKeyFacts(segments: Array<{ name: string; score: number; lanes: { good?: string[]; value?: string[] } }>, lang: string = "ES") {
   const L = stableLang(lang);
   const get = (n) => segments.find((s) => new RegExp(n, "i").test(s.name)) || { score: 0, lanes: { good: [], value: [] } };
   const market = get("Market"), traction = get("Traction"), team = get("Team"), problem = get("Problem"), ask = get("Ask");
@@ -280,7 +280,7 @@ export function deriveKeyFacts(segments, lang = "ES") {
   };
 }
 
-export function deriveStructuralGaps(segments, lang = "ES") {
+export function deriveStructuralGaps(segments: Array<{ name: string }>, lang: string = "ES") {
   // Guard: do not suggest anything until there is content
   if (!Array.isArray(segments) || segments.length === 0) return [];
   const L = stableLang(lang);
@@ -306,14 +306,14 @@ const INVESTORS = [
   { name: "Altiplano Ventures", geo: "Andes", focus: "Data/AI, SaaS", stages: ["Pre-seed", "Seed"], min: 100_000, max: 700_000 },
 ];
 
-function slugifyNameToLinkedIn(name) {
+function slugifyNameToLinkedIn(name: string): string {
   // best-effort slug to a likely LinkedIn company page
   const x = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const slug = x.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   return `https://www.linkedin.com/company/${slug}`;
 }
 
-export function suggestInvestors(stage = "Pre-seed", tractionScore = 6, marketScore = 6, sector = "General", country = "LATAM") {
+export function suggestInvestors(stage: string = "Pre-seed", tractionScore: number = 6, marketScore: number = 6, sector: string = "General", country: string = "LATAM") {
   // score by geo/sector/stage alignment
   const scoreFor = (v) => {
     let s = 0;
@@ -344,7 +344,7 @@ export function suggestInvestors(stage = "Pre-seed", tractionScore = 6, marketSc
   return ranked;
 }
 
-export async function safeCopy(text) {
+export async function safeCopy(text: string) {
   try {
     if (typeof navigator !== "undefined" && navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(S(text));
