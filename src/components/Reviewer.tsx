@@ -12,6 +12,9 @@ type Labels = Record<string, LabelValue> & {
   check: string;
   sectionsMissing: string;
 };
+// Arrays that hold parsed bullet strings
+type Lanes = { good: string[]; missing: string[]; importance: string[]; value: string[] };
+
 
 
 // LATAM Pitch Reviewer — single‑file React app (ES/EN)
@@ -184,20 +187,12 @@ export function parseDetailed(md: string): { segments: Array<{ name: string; sco
       const cells = ln.split("|").map((s) => s.trim());
       if (cells.length >= 4 && !/^(-{3,}|Bucket|Sección|--------)/i.test(cells[1])) {
         const name = cells[1];
-        const raw = cells[cells.length - 2] || ""; // content cell
-        const score = clamp(parseInt(cells[2], 10) || 0, 0, 10);
-        const bullets = S(raw)
-          .split(/<br\s*\/?>(?=\S|$)/i)
-          .map((x) => x.trim())
-          .filter(Boolean);
-        const lane = { good: [], missing: [], importance: [], value: [] };
-        for (const b of bullets) {
-          const t = b.replace(/\*\*/g, "").trim();
-          if (/^(Why:|Por qué:)/i.test(t)) lane.good.push(t.replace(/^(Why:|Por qué:)\s*/i, ""));
-          else if (/^(Improvement:|Mejora:)/i.test(t)) lane.missing.push(t.replace(/^(Improvement:|Mejora:)\s*/i, ""));
-          else if (/^(Why investors care:|Por qué importa:)/i.test(t)) lane.importance.push(t.replace(/^(Why investors care:|Por qué importa:)\s*/i, ""));
-          else if (/^(Example:|Ejemplo:)/i.test(t)) lane.value.push(t.replace(/^(Example:|Ejemplo:)\s*/i, ""));
-          else lane.good.push(t);
+        const bullets: string[] = String(raw)
+  .split(/<br\s*\/?>/i)
+  .map(x => x.trim())
+  .filter((x): x is string => Boolean(x));
+
+const lane: Lanes = { good: [], missing: [], importance: [], value: [] };
         }
         out.segments.push({ name, score, lanes: lane });
       }
