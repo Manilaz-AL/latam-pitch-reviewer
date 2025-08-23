@@ -250,42 +250,74 @@ export function parseDetailed(md: string): Parsed {
 }
 
 
-export function enrichSegments(segments: Array<{ name: string; score: number; lanes: { good?: string[]; missing?: string[]; importance?: string[]; value?: string[] } }>, lang: string = "ES") {
+export function enrichSegments(
+  segments: Array<{
+    name: string;
+    score: number;
+    lanes: { good?: string[]; missing?: string[]; importance?: string[]; value?: string[] };
+  }>,
+  lang: string = "ES"
+) {
   const L = stableLang(lang);
-  const add = (arr, ...items) => items.forEach((it) => it && arr.length < 3 && arr.push(it));
+
+  // ✅ typed helper
+  const add = (arr: string[], ...items: Array<string | undefined | null>) => {
+    items.forEach((it) => {
+      if (it && arr.length < 3) arr.push(it);
+    });
+  };
+
   return segments.map((s) => {
-    const lanes = {
-      good: [...(s.lanes?.good || [])],
-      missing: [...(s.lanes?.missing || [])],
-      importance: [...(s.lanes?.importance || [])],
-      value: [...(s.lanes?.value || [])],
+    // ✅ make the type explicit so pushes are happy
+    const lanes: LaneBuckets = {
+      good: [...(s.lanes?.good ?? [])],
+      missing: [...(s.lanes?.missing ?? [])],
+      importance: [...(s.lanes?.importance ?? [])],
+      value: [...(s.lanes?.value ?? [])],
     };
+
     const n = s.name.toLowerCase();
+
     if (n.includes("market")) {
-      add(lanes.missing, L === "ES" ? "SOM por país (fórmula y supuestos)" : "SOM by country (formula & assumptions)");
-      add(lanes.importance, L === "ES" ? "Guía el go‑to‑market y sizing de ronda" : "Guides GTM and round sizing");
-      add(lanes.value, L === "ES" ? "Tabla bottom‑up: (#clientes x ARPU x penetración)" : "Bottom‑up table: (#customers × ARPU × penetration)");
+      add(
+        lanes.missing,
+        L === "ES" ? "SOM por país (fórmula y supuestos)" : "SOM by country (formula & assumptions)"
+      );
+      add(
+        lanes.importance,
+        L === "ES" ? "Guía el go-to-market y sizing de ronda" : "Guides GTM and round sizing"
+      );
+      add(
+        lanes.value,
+        L === "ES" ? "Tabla bottom-up: (#clientes x ARPU x penetración)" : "Bottom-up table: (#customers × ARPU × penetration)"
+      );
     }
+
     if (n.includes("business")) {
       add(lanes.missing, L === "ES" ? "CAC por canal y payback" : "Channel CAC & payback");
       add(lanes.value, L === "ES" ? "Modelo LTV/CAC con sensibilidad" : "LTV/CAC model with sensitivity");
     }
+
     if (n.includes("traction")) {
       add(lanes.missing, L === "ES" ? "Cohortes y retención M2/M3" : "Cohorts & M2/M3 retention");
       add(lanes.importance, L === "ES" ? "Evidencia de PMF y eficiencia" : "Evidence of PMF & efficiency");
       add(lanes.value, L === "ES" ? "Gráfico de retención y embudo" : "Retention & funnel chart");
     }
+
     if (n.includes("team")) {
-      add(lanes.missing, L === "ES" ? "Rol comercial senior (quota‑carrier)" : "Senior commercial role (quota carrier)");
-      add(lanes.value, L === "ES" ? "Plan de contratación 2‑3 roles clave" : "Hiring plan for 2–3 key roles");
+      add(lanes.missing, L === "ES" ? "Rol comercial senior (quota-carrier)" : "Senior commercial role (quota carrier)");
+      add(lanes.value, L === "ES" ? "Plan de contratación 2-3 roles clave" : "Hiring plan for 2–3 key roles");
     }
+
     if (n.includes("problem")) {
       add(lanes.missing, L === "ES" ? "Cuantificar frecuencia/costo del dolor" : "Quantify pain frequency/cost");
-      add(lanes.value, L === "ES" ? "Encuesta N/% y casos de uso top" : "Survey N/% and top use‑cases");
+      add(lanes.value, L === "ES" ? "Encuesta N/% y casos de uso top" : "Survey N/% and top use-cases");
     }
+
     return { ...s, lanes };
   });
 }
+
 
 export function deriveSummaryBullets(segments: Array<{ name: string; score: number; lanes?: { missing?: string[]; good?: string[]; importance?: string[]; value?: string[] } }>): string[] {
   if (!Array.isArray(segments) || segments.length === 0) return [];
