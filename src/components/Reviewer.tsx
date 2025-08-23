@@ -7,16 +7,22 @@ import React, { useEffect, useMemo, useState } from "react";
 // Feature: Valuation card shows company valuation context AND the Ask.
 // Investor table: LinkedIn link, Why a good match, and a visual Match icon.
 
-// ======================= Small helpers =======================
-const clamp = (v: number, a: number, b: number): number => Math.max(a, Math.min(b, v));
+// ================= Small helpers =================
+type Lang = "ES" | "EN";
+
+/** Clamp a number between a..b */
+const clamp = (v: number, a: number, b: number): number =>
+  Math.max(a, Math.min(b, v));
+
+/** Safe stringifier */
 const S = (v: unknown): string => (v == null ? "" : String(v));
-// Robust language normalizer: returns only "ES" or "EN"; defaults to EN for unknowns
-export function stableLang(v: unknown): "ES" | "EN" {
-  const t = S(v).trim().toUpperCase();
-  if (t.startsWith("ES")) return "ES";
-  if (t.startsWith("EN")) return "EN";
-  return "EN";
+
+/** Robust language normalizer: returns only "ES" or "EN"; defaults to EN for unknowns */
+export function stableLang(v: unknown): Lang {
+  return String(v ?? "EN").toUpperCase().startsWith("ES") ? "ES" : "EN";
 }
+
+
 
 const LBL = {
   EN: {
