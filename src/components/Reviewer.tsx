@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-// ---- Label typing helpers (add right under the imports) ----
+
+// ---- Label typing helpers (keep) ----
 type LabelValue = string | ((n: number) => string);
 
-/** Required keys we actually read in the UI, but allow any other string keys too */
 type Labels = Record<string, LabelValue> & {
   investors: string;
   moreInvestors: (n: number) => string;
@@ -12,8 +12,12 @@ type Labels = Record<string, LabelValue> & {
   check: string;
   sectionsMissing: string;
 };
-// Arrays that hold parsed bullet strings
-type Lanes = { good: string[]; missing: string[]; importance: string[]; value: string[] };
+
+// 👇 keep only this alias – do NOT have any `type Lanes = …` in the file
+type LaneBuckets = { good: string[]; missing: string[]; importance: string[]; value: string[] };
+type Segment = { name: string; score: number; lanes: LaneBuckets };
+type Parsed = { segments: Segment[]; missing: Array<{ section: string; why: string }> };
+
 
 
 
