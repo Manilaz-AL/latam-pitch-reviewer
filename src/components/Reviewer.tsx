@@ -1,4 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
+// ---- Label typing helpers (add right under the imports) ----
+type LabelValue = string | ((n: number) => string);
+
+/** Required keys we actually read in the UI, but allow any other string keys too */
+type Labels = Record<string, LabelValue> & {
+  investors: string;
+  moreInvestors: (n: number) => string;
+  country: string;
+  focus: string;
+  stage: string;
+  check: string;
+  sectionsMissing: string;
+};
+
 
 // LATAM Pitch Reviewer — single‑file React app (ES/EN)
 // Fix: resolved a syntax error caused by stray/duplicated JSX after InvestorTable.
@@ -23,7 +37,7 @@ export function stableLang(v: unknown): Lang {
 }
 
 
-const LBL = {
+const LBL: { EN: Labels; ES: Labels } = {
   EN: {
     title: "LATAM Pitch Reviewer",
     subtitle: "Upload your deck and get a structured investor-style review.",
