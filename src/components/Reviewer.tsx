@@ -175,9 +175,10 @@ export function toMarkdown(r: { general?: string; detailed?: string } | null): s
   return `# Pitch-Deck Review\n\n${S(r.general).replace(/> /g, "")}\n\n${S(r.detailed)}`;
 }
 
-type Lanes = { good: string[]; missing: string[]; importance: string[]; value: string[] };
-type Segment = { name: string; score: number; lanes: Lanes };
+type LaneBuckets = { good: string[]; missing: string[]; importance: string[]; value: string[] };
+type Segment = { name: string; score: number; lanes: LaneBuckets };
 type Parsed = { segments: Segment[]; missing: Array<{ section: string; why: string }> };
+
 
 // Parse the markdown table above into segments & missing rows
 export function parseDetailed(md: string): Parsed {
@@ -202,7 +203,7 @@ export function parseDetailed(md: string): Parsed {
           .map((x) => x.trim())
           .filter(Boolean);
 
-        const lane: Lanes = { good: [], missing: [], importance: [], value: [] };
+        const lane: LaneBuckets = { good: [], missing: [], importance: [], value: [] };
         for (const b of bullets) {
           const t = b.replace(/\*\*/g, "").trim();
           if (/^(Why:|Por qué:)/i.test(t)) {
