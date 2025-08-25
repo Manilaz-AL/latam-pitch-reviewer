@@ -320,7 +320,8 @@ export function enrichSegments(
 
 
 export function deriveSummaryBullets(
-  segments: Array<{ name: string; score: number; lanes?: { missing?: string[]; good?: string[]; importance?: string[]; value?: string[] } }>
+  segments: Array<{ name: string; score: number; lanes?: { missing?: string[]; good?: string[]; importance?: string[]; value?: string[] } }>,
+  _lang?: string // optional, unused
 ): string[] {
   if (!Array.isArray(segments) || segments.length === 0) return [];
 
@@ -482,6 +483,20 @@ export function deriveStructuralGaps(segments: Array<{ name: string }>, lang: st
   for (const e of expected) if (!names.some((n) => e.key.test(n))) gaps.push({ section: e.label, why: e.why });
   return gaps;
 }
+type Investor = {
+  name: string;
+  geo: string;
+  focus: string;
+  stages: string[];
+  min: number;
+  max: number;
+};
+
+type RankedInvestor = Investor & {
+  linkedin: string;
+  matchScore: number;
+  why: string;
+};
 
 const INVESTORS = [
   { name: "Fondo Andino", geo: "Andes/LATAM", focus: "B2B SaaS, Fintech", stages: ["Pre-seed", "Seed"], min: 100_000, max: 600_000 },
@@ -499,23 +514,49 @@ function slugifyNameToLinkedIn(name: string): string {
   return `https://www.linkedin.com/company/${slug}`;
 }
 
-export function suggestInvestors(stage: string = "Pre-seed", tractionScore: number = 6, marketScore: number = 6, sector: string = "General", country: string = "LATAM") {
-  // score by geo/sector/stage alignment
-  const scoreFor = (v) => {
+export function suggestInvestors(
+  stage: string = "Pre-seed",
+  tractionScore: number = 6,
+  marketScore: number = 6, // kept for future use if you want
+  sector: string = "General",
+  country: string = "LATAM"
+): RankedInvestor[] {
+  const scoreFor = (v: Investor): number => {
     let s = 0;
     if (String(v.geo).includes(country)) s += 1;
     if (String(v.focus).toLowerCase().includes(String(sector).toLowerCase())) s += 1;
     if ((v.stages || []).includes(stage)) s += 1;
-    return s; // 0-3
+    return s; // 0–3
   };
-  const whyFor = (v) => {
-    const bits = [];
-    // language-aware at render time; here write neutral terms
+
+  const whyFor = (v: Investor): string => {
+    const bits: string[] = [];
     if (String(v.geo).includes(country)) bits.push("Geo aligned");
     if (String(v.focus).toLowerCase().includes(String(sector).toLowerCase())) bits.push("Sector thesis");
     if ((v.stages || []).includes(stage)) bits.push("Stage fit");
     return bits.join(" • ") || "Generalist";
   };
+
+  const picks: RankedInvestor[] = INVESTORS
+    .filter((v) => v.stages.includes(stage))
+    .map((v) => ({
+      ...v,
+      linkedin: slugifyNameToLinkedIn(v.name),
+      matchScore: scoreFor(v),
+      why: whyFor(v),
+    }));
+
+  // basic ordering, then tie-break by matchScore
+  picks.sort((a, b) => (String(a.geo).includes(country) ? -1 : 1));
+  picks.sort((a, b) =>
+    String(a.focus).toLowerCase().includes(String(sector).toLowerCase()) ? -1 : 1
+  );
+  picks.sort((a, b) => (tractionScore > 7 ? b.max - a.max : a.min - b.min));
+  picks.sort((a, b) => b.matchScore - a.matchScore);
+
+  return picks;
+}
+
   const picks = INVESTORS.filter((v) => v.stages.includes(stage)).map((v) => ({
     ...v,
     linkedin: slugifyNameToLinkedIn(v.name),
@@ -566,7 +607,8 @@ export default function App() {
   const [review, setReview] = useState(null);
   const [segments, setSegments] = useState([]);
   const [missing, setMissing] = useState([]);
-  const [dupNote] = useState(null);
+  const [_dupNote] = useState(null);
+
   const [exportUrl, setExportUrl] = useState(null);
   const [isBusy, setIsBusy] = useState(false);
   const [toast, setToast] = useState(null);
@@ -919,7 +961,7 @@ export default function App() {
   );
 }
 
-function FactCard({ title, text }) {
+function FactCard({ title, text }: { title: string; text: string }) {
   return (
     <div className="rounded-xl border border-neutral-800/80 bg-neutral-950/60 p-4">
       <div className="text-neutral-300 text-xs">{title}</div>
@@ -928,7 +970,15 @@ function FactCard({ title, text }) {
   );
 }
 
-function FactCardRich({ title, data, lang }) {
+function FactCardRich({
+  title,
+  data,
+  lang,
+}: {
+  title: string;
+  lang: string;
+  data: { fromDeck: string[]; evaluation: string; benchmark: string; ask?: string | string[] };
+}) {
   const L = stableLang(lang);
   const lbl = LBL[L];
   return (
@@ -958,7 +1008,13 @@ function FactCardRich({ title, data, lang }) {
   );
 }
 
-function SegmentMatrix({ lanes, lang }) {
+function SegmentMatrix({
+  lanes,
+  lang,
+}: {
+  lanes: LaneBuckets;
+  lang: string;
+}) {
   const L = stableLang(lang);
   const headers = L === "ES" ? ["Qué está bien", "Qué falta", "Por qué importa", "Cómo aportar valor"] : ["What's good", "What's missing", "Why it matters", "How you can add value"];
   const cols = [lanes.good || [], lanes.missing || [], lanes.importance || [], lanes.value || []];
@@ -981,7 +1037,7 @@ function SegmentMatrix({ lanes, lang }) {
   );
 }
 
-function MatchBadge({ score }) {
+function MatchBadge({ score }: { score: number }) {
   // 0-3 dots; checkmark for perfect match
   if (score >= 3) {
     return (
@@ -1002,7 +1058,13 @@ function MatchBadge({ score }) {
   );
 }
 
-function InvestorTable({ lang, investors }) {
+function InvestorTable({
+  lang,
+  investors,
+}: {
+  lang: string;
+  investors: RankedInvestor[];
+}) {
   const L = stableLang(lang);
   const lbl = LBL[L];
   const shown = (investors || []).slice(0, 3);
