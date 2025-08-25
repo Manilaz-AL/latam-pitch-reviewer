@@ -501,7 +501,7 @@ type RankedInvestor = Investor & {
 export function suggestInvestors(
   stage: string = "Pre-seed",
   tractionScore: number = 6,
-  marketScore: number = 6, // kept for future use if you want it later
+  marketScore: number = 6, // kept for future use
   sector: string = "General",
   country: string = "LATAM"
 ): RankedInvestor[] {
@@ -529,7 +529,7 @@ export function suggestInvestors(
       };
     });
 
-  // Single comparator: amount (primary), then matchScore, then name
+  // Single, deterministic sort
   picks.sort((a, b) => {
     const amountCmp = tractionScore > 7 ? b.max - a.max : a.min - b.min;
     if (amountCmp !== 0) return amountCmp;
@@ -540,19 +540,6 @@ export function suggestInvestors(
   return picks;
 }
 
-  const picks = INVESTORS.filter((v) => v.stages.includes(stage)).map((v) => ({
-    ...v,
-    linkedin: slugifyNameToLinkedIn(v.name),
-    matchScore: scoreFor(v),
-    why: whyFor(v),
-  }));
-  const byGeo = picks.sort((a, b) => (String(a.geo).includes(country) ? -1 : 1));
-  const bySector = byGeo.sort((a, b) => (String(a.focus).toLowerCase().includes(String(sector).toLowerCase()) ? -1 : 1));
-  const ranked = bySector.sort((a, b) => (tractionScore > 7 ? b.max - a.max : a.min - b.min));
-  // final sort tie-breaker by matchScore desc
-  ranked.sort((a, b) => b.matchScore - a.matchScore);
-  return ranked;
-}
 
 export async function safeCopy(text: string) {
   try {
