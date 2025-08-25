@@ -484,6 +484,7 @@ export function deriveStructuralGaps(segments: Array<{ name: string }>, lang: st
   return gaps;
 }
 // --- Investor types + data (place ABOVE suggestInvestors) ---
+// --- Investor types + data (place ABOVE suggestInvestors) ---
 type Investor = {
   name: string;
   geo: string;
@@ -500,12 +501,12 @@ type RankedInvestor = Investor & {
 };
 
 const INVESTORS: Investor[] = [
-  { name: "Fondo Andino",    geo: "Andes/LATAM",  focus: "B2B SaaS, Fintech",            stages: ["Pre-seed", "Seed"], min: 100_000, max: 600_000 },
-  { name: "Río Ventures",     geo: "Brasil/LATAM", focus: "Marketplaces, SMB SaaS",       stages: ["Pre-seed", "Seed"], min: 150_000, max: 800_000 },
-  { name: "Pacífico Capital",  geo: "México/LATAM", focus: "Fintech, Infra",               stages: ["Pre-seed", "Seed"], min: 200_000, max: 1_000_000 },
-  { name: "Pampas Partners",   geo: "Cono Sur",     focus: "AgroTech, B2B",                stages: ["Pre-seed", "Seed"], min: 100_000, max: 500_000 },
-  { name: "Caribe Labs",       geo: "Caribe",       focus: "B2C apps, Payments",           stages: ["Pre-seed", "Seed"], min: 50_000,  max: 300_000 },
-  { name: "Altiplano Ventures",geo: "Andes",        focus: "Data/AI, SaaS",                stages: ["Pre-seed", "Seed"], min: 100_000, max: 700_000 },
+  { name: "Fondo Andino",     geo: "Andes/LATAM",  focus: "B2B SaaS, Fintech",      stages: ["Pre-seed", "Seed"], min: 100_000, max: 600_000 },
+  { name: "Río Ventures",      geo: "Brasil/LATAM", focus: "Marketplaces, SMB SaaS", stages: ["Pre-seed", "Seed"], min: 150_000, max: 800_000 },
+  { name: "Pacífico Capital",   geo: "México/LATAM", focus: "Fintech, Infra",         stages: ["Pre-seed", "Seed"], min: 200_000, max: 1_000_000 },
+  { name: "Pampas Partners",    geo: "Cono Sur",     focus: "AgroTech, B2B",          stages: ["Pre-seed", "Seed"], min: 100_000, max: 500_000 },
+  { name: "Caribe Labs",        geo: "Caribe",       focus: "B2C apps, Payments",     stages: ["Pre-seed", "Seed"], min: 50_000,  max: 300_000 },
+  { name: "Altiplano Ventures", geo: "Andes",        focus: "Data/AI, SaaS",          stages: ["Pre-seed", "Seed"], min: 100_000, max: 700_000 },
 ];
 
 function slugifyNameToLinkedIn(name: string): string {
@@ -515,47 +516,51 @@ function slugifyNameToLinkedIn(name: string): string {
 }
 
 
+
 export function suggestInvestors(
   stage: string = "Pre-seed",
   tractionScore: number = 6,
-  marketScore: number = 6, // kept for future use
+  marketScore: number = 6,
   sector: string = "General",
   country: string = "LATAM"
 ): RankedInvestor[] {
+  // score by geo/sector/stage alignment
+  const scoreFor = (v: Investor) => {
+    let s = 0;
+    if (String(v.geo).includes(country)) s += 1;
+    if (String(v.focus).toLowerCase().includes(String(sector).toLowerCase())) s += 1;
+    if ((v.stages || []).includes(stage)) s += 1;
+    return s; // 0-3
+  };
+
+  const whyFor = (v: Investor) => {
+    const bits: string[] = [];
+    if (String(v.geo).includes(country)) bits.push("Geo aligned");
+    if (String(v.focus).toLowerCase().includes(String(sector).toLowerCase())) bits.push("Sector thesis");
+    if ((v.stages || []).includes(stage)) bits.push("Stage fit");
+    return bits.join(" • ") || "Generalist";
+  };
+
   const picks: RankedInvestor[] = INVESTORS
     .filter((v) => v.stages.includes(stage))
-    .map((v) => {
-      const geoMatch = String(v.geo).includes(country) ? 1 : 0;
-      const sectorMatch = String(v.focus).toLowerCase().includes(String(sector).toLowerCase()) ? 1 : 0;
-      const stageMatch = (v.stages || []).includes(stage) ? 1 : 0;
-      const matchScore = geoMatch + sectorMatch + stageMatch;
+    .map((v) => ({
+      ...v,
+      linkedin: slugifyNameToLinkedIn(v.name),
+      matchScore: scoreFor(v),
+      why: whyFor(v),
+    }));
 
-      const why = [
-        geoMatch ? "Geo aligned" : "",
-        sectorMatch ? "Sector thesis" : "",
-        stageMatch ? "Stage fit" : "",
-      ]
-        .filter(Boolean)
-        .join(" • ") || "Generalist";
-
-      return {
-        ...v,
-        linkedin: slugifyNameToLinkedIn(v.name),
-        matchScore,
-        why,
-      };
-    });
-
-  // Single, deterministic sort
-  picks.sort((a, b) => {
-    const amountCmp = tractionScore > 7 ? b.max - a.max : a.min - b.min;
-    if (amountCmp !== 0) return amountCmp;
-    if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
-    return a.name.localeCompare(b.name);
-  });
+  // simple multi-pass sort
+  picks.sort((a, b) => (String(a.geo).includes(country) ? -1 : 1));
+  picks.sort((a, b) =>
+    String(a.focus).toLowerCase().includes(String(sector).toLowerCase()) ? -1 : 1
+  );
+  picks.sort((a, b) => (tractionScore > 7 ? b.max - a.max : a.min - b.min));
+  picks.sort((a, b) => b.matchScore - a.matchScore); // final tie-breaker
 
   return picks;
 }
+
 
 
 export async function safeCopy(text: string) {
