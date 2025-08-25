@@ -354,42 +354,117 @@ export function deriveSummaryBullets(
 }
 
 
-export function deriveKeyFacts(segments: Array<{ name: string; score: number; lanes: { good?: string[]; value?: string[] } }>, lang: string = "ES") {
+export function deriveKeyFacts(
+  segments: Array<{ name: string; score: number; lanes: { good?: string[]; value?: string[] } }>,
+  lang: string = "ES"
+) {
   const L = stableLang(lang);
-  const from = (
-  s: { lanes: { good?: string[]; value?: string[] } },
-  fallback: string
-): string[] => {
-  const arr: string[] = [];
-  if (s.lanes.good?.[0]) arr.push(s.lanes.good[0]);
-  if (s.lanes.value?.[0]) arr.push(s.lanes.value[0]);
-  return arr.length ? arr.slice(0, 2) : [fallback];
-};
-  const market = get("Market"), traction = get("Traction"), team = get("Team"), problem = get("Problem"), ask = get("Ask");
-  const from = (s, f) => {
-    const a = [];
-    if ((s.lanes.good || [])[0]) a.push(s.lanes.good[0]);
-    if ((s.lanes.value || [])[0]) a.push(s.lanes.value[0]);
-    return a.length ? a.slice(0, 2) : [f];
+
+  // find a matching segment by name (case-insensitive) with a safe fallback
+  const get = (n: string) =>
+    segments.find((s) => new RegExp(n, "i").test(s.name)) ||
+    { name: n, score: 0, lanes: { good: [], value: [] } };
+
+  // pick up to two bullets from a segment; otherwise use the fallback
+  const pickFrom = (
+    s: { lanes: { good?: string[]; value?: string[] } },
+    fallback: string
+  ): string[] => {
+    const arr: string[] = [];
+    if (s.lanes.good?.[0]) arr.push(s.lanes.good[0]);
+    if (s.lanes.value?.[0]) arr.push(s.lanes.value[0]);
+    return arr.length ? arr.slice(0, 2) : [fallback];
   };
-  const valuationEval = market.score + traction.score + team.score >= 20 ? (L === "ES" ? "En rango para Pre-seed dada tracción+equipo." : "In range for Pre-seed given traction+team.") : L === "ES" ? "Alta vs benchmarks por madurez." : "High vs benchmarks for maturity.";
-  const valuationBench = L === "ES" ? "Pre-seed LATAM: US$0.5–3.5M post; cheques US$100–750k." : "LATAM Pre-seed: US$0.5–3.5M post; checks US$100–750k.";
-  const interest = traction.score >= 7 && problem.score >= 7 ? (L === "ES" ? "Atractivo para fondos con foco early: señales de adopción y dolor claro." : "Attractive for early funds: adoption signals, clear pain.") : L === "ES" ? "Aún temprano: priorizar tracción y tamaño del problema." : "Early: prioritize traction and problem size.";
+
+  const market   = get("Market");
+  const traction = get("Traction");
+  const team     = get("Team");
+  const problem  = get("Problem");
+  const ask      = get("Ask");
+
+  const valuationEval =
+    market.score + traction.score + team.score >= 20
+      ? (L === "ES"
+          ? "En rango para Pre-seed dada tracción+equipo."
+          : "In range for Pre-seed given traction+team.")
+      : (L === "ES"
+          ? "Alta vs benchmarks por madurez."
+          : "High vs benchmarks for maturity.");
+
+  const valuationBench =
+    L === "ES"
+      ? "Pre-seed LATAM: US$0.5–3.5M post; cheques US$100–750k."
+      : "LATAM Pre-seed: US$0.5–3.5M post; checks US$100–750k.";
+
+  const interest =
+    traction.score >= 7 && problem.score >= 7
+      ? (L === "ES"
+          ? "Atractivo para fondos con foco early: señales de adopción y dolor claro."
+          : "Attractive for early funds: adoption signals, clear pain.")
+      : (L === "ES"
+          ? "Aún temprano: priorizar tracción y tamaño del problema."
+          : "Early: prioritize traction and problem size.");
+
   return {
     valuation: {
-      fromDeck: from(market, L === "ES" ? "Tamaño de mercado mencionado" : "Sizing mentioned"),
+      fromDeck: pickFrom(market, L === "ES" ? "Tamaño de mercado mencionado" : "Sizing mentioned"),
       evaluation: valuationEval,
       benchmark: valuationBench,
       // Ask pulled from Ask row if present; otherwise a friendly default
-      ask: from(ask, L === "ES" ? "No especificado" : "Not specified")[0],
+      ask: pickFrom(ask, L === "ES" ? "No especificado" : "Not specified")[0],
     },
-    traction: { fromDeck: from(traction, L === "ES" ? "Señales tempranas" : "Early signals"), evaluation: traction.score >= 7 ? (L === "ES" ? "Positiva; medir retención y payback CAC." : "Positive; measure retention and CAC payback.") : L === "ES" ? "Insuficiente; enfocar en cohortes." : "Insufficient; focus on cohorts.", benchmark: L === "ES" ? "Seed LATAM: retención M3>30% B2C / M3>70% logo B2B (referencial)." : "LATAM Seed: M3 retention >30% B2C / >70% logo B2B (indicative)." },
-    team: { fromDeck: from(team, L === "ES" ? "Equipo fundacional" : "Founding team"), evaluation: team.score >= 7 ? (L === "ES" ? "Sólido para la etapa." : "Strong for stage.") : L === "ES" ? "Incompleto: cubrir gaps clave." : "Incomplete: cover key gaps.", benchmark: L === "ES" ? "Pre‑seed: 2–3 founders complementarios; 1 senior GTM deseable." : "Pre‑seed: 2–3 complementary founders; senior GTM desirable." },
-    market: { fromDeck: from(market, L === "ES" ? "TAM indicado" : "TAM indicated"), evaluation: market.score >= 6 ? (L === "ES" ? "Sizing creíble." : "Sizing credible.") : L === "ES" ? "Sizing débil; construir SOM bottom‑up." : "Weak sizing; build bottom‑up SOM.", benchmark: L === "ES" ? "Esperado: fuentes citadas y SOM por país/vertical." : "Expected: cited sources and SOM by country/vertical." },
-    problem: { fromDeck: from(problem, L === "ES" ? "Dolor evidenciado" : "Pain evidenced"), evaluation: problem.score >= 7 ? (L === "ES" ? "Dolor validado." : "Validated pain.") : L === "ES" ? "Cuantificar frecuencia/costo." : "Quantify frequency/cost.", benchmark: L === "ES" ? "Bench: encuestas con N>=100 / entrevistas grabadas." : "Bench: surveys N>=100 / recorded interviews." },
+    traction: {
+      fromDeck: pickFrom(traction, L === "ES" ? "Señales tempranas" : "Early signals"),
+      evaluation:
+        traction.score >= 7
+          ? (L === "ES"
+              ? "Positiva; medir retención y payback CAC."
+              : "Positive; measure retention and CAC payback.")
+          : (L === "ES"
+              ? "Insuficiente; enfocar en cohortes."
+              : "Insufficient; focus on cohorts."),
+      benchmark:
+        L === "ES"
+          ? "Seed LATAM: retención M3>30% B2C / M3>70% logo B2B (referencial)."
+          : "LATAM Seed: M3 retention >30% B2C / >70% logo B2B (indicative).",
+    },
+    team: {
+      fromDeck: pickFrom(team, L === "ES" ? "Equipo fundacional" : "Founding team"),
+      evaluation:
+        team.score >= 7
+          ? (L === "ES" ? "Sólido para la etapa." : "Strong for stage.")
+          : (L === "ES" ? "Incompleto: cubrir gaps clave." : "Incomplete: cover key gaps."),
+      benchmark:
+        L === "ES"
+          ? "Pre-seed: 2–3 founders complementarios; 1 senior GTM deseable."
+          : "Pre-seed: 2–3 complementary founders; senior GTM desirable.",
+    },
+    market: {
+      fromDeck: pickFrom(market, L === "ES" ? "TAM indicado" : "TAM indicated"),
+      evaluation:
+        market.score >= 6
+          ? (L === "ES" ? "Sizing creíble." : "Sizing credible.")
+          : (L === "ES" ? "Sizing débil; construir SOM bottom-up." : "Weak sizing; build bottom-up SOM."),
+      benchmark:
+        L === "ES"
+          ? "Esperado: fuentes citadas y SOM por país/vertical."
+          : "Expected: cited sources and SOM by country/vertical.",
+    },
+    problem: {
+      fromDeck: pickFrom(problem, L === "ES" ? "Dolor evidenciado" : "Pain evidenced"),
+      evaluation:
+        problem.score >= 7
+          ? (L === "ES" ? "Dolor validado." : "Validated pain.")
+          : (L === "ES" ? "Cuantificar frecuencia/costo." : "Quantify frequency/cost."),
+      benchmark:
+        L === "ES"
+          ? "Bench: encuestas con N>=100 / entrevistas grabadas."
+          : "Bench: surveys N>=100 / recorded interviews.",
+    },
     verdict: interest,
   };
 }
+
 
 export function deriveStructuralGaps(segments: Array<{ name: string }>, lang: string = "ES") {
   // Guard: do not suggest anything until there is content
