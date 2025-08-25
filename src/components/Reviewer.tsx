@@ -494,65 +494,48 @@ type Investor = {
 
 type RankedInvestor = Investor & {
   linkedin: string;
-  matchScore: number;
+  matchScore: number; // 0..3
   why: string;
 };
-
-const INVESTORS = [
-  { name: "Fondo Andino", geo: "Andes/LATAM", focus: "B2B SaaS, Fintech", stages: ["Pre-seed", "Seed"], min: 100_000, max: 600_000 },
-  { name: "Río Ventures", geo: "Brasil/LATAM", focus: "Marketplaces, SMB SaaS", stages: ["Pre-seed", "Seed"], min: 150_000, max: 800_000 },
-  { name: "Pacífico Capital", geo: "México/LATAM", focus: "Fintech, Infra", stages: ["Pre-seed", "Seed"], min: 200_000, max: 1_000_000 },
-  { name: "Pampas Partners", geo: "Cono Sur", focus: "AgroTech, B2B", stages: ["Pre-seed", "Seed"], min: 100_000, max: 500_000 },
-  { name: "Caribe Labs", geo: "Caribe", focus: "B2C apps, Payments", stages: ["Pre-seed", "Seed"], min: 50_000, max: 300_000 },
-  { name: "Altiplano Ventures", geo: "Andes", focus: "Data/AI, SaaS", stages: ["Pre-seed", "Seed"], min: 100_000, max: 700_000 },
-];
-
-function slugifyNameToLinkedIn(name: string): string {
-  // best-effort slug to a likely LinkedIn company page
-  const x = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const slug = x.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  return `https://www.linkedin.com/company/${slug}`;
-}
 
 export function suggestInvestors(
   stage: string = "Pre-seed",
   tractionScore: number = 6,
-  marketScore: number = 6, // kept for future use if you want
+  marketScore: number = 6, // kept for future use if you want it later
   sector: string = "General",
   country: string = "LATAM"
 ): RankedInvestor[] {
-  const scoreFor = (v: Investor): number => {
-    let s = 0;
-    if (String(v.geo).includes(country)) s += 1;
-    if (String(v.focus).toLowerCase().includes(String(sector).toLowerCase())) s += 1;
-    if ((v.stages || []).includes(stage)) s += 1;
-    return s; // 0–3
-  };
-
-  const whyFor = (v: Investor): string => {
-    const bits: string[] = [];
-    if (String(v.geo).includes(country)) bits.push("Geo aligned");
-    if (String(v.focus).toLowerCase().includes(String(sector).toLowerCase())) bits.push("Sector thesis");
-    if ((v.stages || []).includes(stage)) bits.push("Stage fit");
-    return bits.join(" • ") || "Generalist";
-  };
-
   const picks: RankedInvestor[] = INVESTORS
     .filter((v) => v.stages.includes(stage))
-    .map((v) => ({
-      ...v,
-      linkedin: slugifyNameToLinkedIn(v.name),
-      matchScore: scoreFor(v),
-      why: whyFor(v),
-    }));
+    .map((v) => {
+      const geoMatch = String(v.geo).includes(country) ? 1 : 0;
+      const sectorMatch = String(v.focus).toLowerCase().includes(String(sector).toLowerCase()) ? 1 : 0;
+      const stageMatch = (v.stages || []).includes(stage) ? 1 : 0;
+      const matchScore = geoMatch + sectorMatch + stageMatch;
 
-  // basic ordering, then tie-break by matchScore
-  picks.sort((a, b) => (String(a.geo).includes(country) ? -1 : 1));
-  picks.sort((a, b) =>
-    String(a.focus).toLowerCase().includes(String(sector).toLowerCase()) ? -1 : 1
-  );
-  picks.sort((a, b) => (tractionScore > 7 ? b.max - a.max : a.min - b.min));
-  picks.sort((a, b) => b.matchScore - a.matchScore);
+      const why = [
+        geoMatch ? "Geo aligned" : "",
+        sectorMatch ? "Sector thesis" : "",
+        stageMatch ? "Stage fit" : "",
+      ]
+        .filter(Boolean)
+        .join(" • ") || "Generalist";
+
+      return {
+        ...v,
+        linkedin: slugifyNameToLinkedIn(v.name),
+        matchScore,
+        why,
+      };
+    });
+
+  // Single comparator: amount (primary), then matchScore, then name
+  picks.sort((a, b) => {
+    const amountCmp = tractionScore > 7 ? b.max - a.max : a.min - b.min;
+    if (amountCmp !== 0) return amountCmp;
+    if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+    return a.name.localeCompare(b.name);
+  });
 
   return picks;
 }
