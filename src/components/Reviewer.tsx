@@ -356,7 +356,15 @@ export function deriveSummaryBullets(
 
 export function deriveKeyFacts(segments: Array<{ name: string; score: number; lanes: { good?: string[]; value?: string[] } }>, lang: string = "ES") {
   const L = stableLang(lang);
-  const get = (n) => segments.find((s) => new RegExp(n, "i").test(s.name)) || { score: 0, lanes: { good: [], value: [] } };
+  const from = (
+  s: { lanes: { good?: string[]; value?: string[] } },
+  fallback: string
+): string[] => {
+  const arr: string[] = [];
+  if (s.lanes.good?.[0]) arr.push(s.lanes.good[0]);
+  if (s.lanes.value?.[0]) arr.push(s.lanes.value[0]);
+  return arr.length ? arr.slice(0, 2) : [fallback];
+};
   const market = get("Market"), traction = get("Traction"), team = get("Team"), problem = get("Problem"), ask = get("Ask");
   const from = (s, f) => {
     const a = [];
