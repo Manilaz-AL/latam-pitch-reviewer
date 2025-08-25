@@ -319,19 +319,34 @@ export function enrichSegments(
 }
 
 
-export function deriveSummaryBullets(segments: Array<{ name: string; score: number; lanes?: { missing?: string[]; good?: string[]; importance?: string[]; value?: string[] } }>): string[] {
+export function deriveSummaryBullets(
+  segments: Array<{ name: string; score: number; lanes?: { missing?: string[]; good?: string[]; importance?: string[]; value?: string[] } }>
+): string[] {
   if (!Array.isArray(segments) || segments.length === 0) return [];
+
   const sorted = segments.slice().sort((a, b) => (a.score || 0) - (b.score || 0));
-  const out = [];
+  const out: string[] = [];
+
   for (const s of sorted) {
-    const ln = s.lanes || { missing: [], good: [], importance: [], value: [] };
-    const pick = (arr) => (arr || []).find((x) => x && x !== "—");
-    const txt = pick(ln.missing) || pick(ln.importance) || pick(ln.value) || pick(ln.good);
+    // ✅ make the fallback typed
+    const ln: LaneBuckets = s.lanes ?? { missing: [], good: [], importance: [], value: [] };
+
+    // ✅ type the array and use a type guard in the predicate
+    const pick = (arr: Array<string | undefined | null>): string | undefined =>
+      (arr ?? []).find((x): x is string => typeof x === "string" && x !== "—");
+
+    const txt =
+      pick(ln.missing) ||
+      pick(ln.importance) ||
+      pick(ln.value) ||
+      pick(ln.good);
+
     if (txt) out.push(`${s.name}: ${txt}`);
     if (out.length >= 3) break;
   }
   return out;
 }
+
 
 export function deriveKeyFacts(segments: Array<{ name: string; score: number; lanes: { good?: string[]; value?: string[] } }>, lang: string = "ES") {
   const L = stableLang(lang);
