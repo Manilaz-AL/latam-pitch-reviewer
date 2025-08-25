@@ -609,12 +609,10 @@ const [review, setReview] = useState<Review | null>(null);
 const [segments, setSegments] = useState<Segment[]>([]);
 const [missing, setMissing] = useState<Array<{ section: string; why: string }>>([]);
 
-const [dupNote] = useState<string | null>(null);
-const [exportUrl, setExportUrl] = useState<string | null>(null);
-const [isBusy, setIsBusy] = useState<boolean>(false);
+// optional but good hygiene:
+const [file, setFile] = useState<File | null>(null);
 const [toast, setToast] = useState<string | null>(null);
-
-// keep history loose for now; you can tighten later
+const [exportUrl, setExportUrl] = useState<string | null>(null);
 const [history, setHistory] = useState<any[]>([]);
 
 const [ctx, setCtx] = useState<{ sector: string; country: string; stage: string }>({
@@ -632,7 +630,7 @@ const [ctx, setCtx] = useState<{ sector: string; country: string; stage: string 
       ? { title: 'Entrenado en miles de decks + 30 años de experiencia VC — tu revisor para quedar listo para inversión.', sub: 'Sube tu deck y recibe una revisión con estándar inversor, enfocada en LATAM.', cta: 'Empezar' }
       : { title: 'Trained on thousands of decks + 30 years of VC craft — the Pitch Reviewer to get you investor‑ready.', sub: 'Upload your deck and receive an investor‑grade review tailored for LATAM.', cta: 'Get started now' }
   ), [uiLang]);
-  const scorePct = review ? clamp(Number(review.score || 0), 0, 100) : 0;
+  const scorePct = clamp(Number(review?.score ?? 0), 0, 100);
   const ringStyle = { background: `conic-gradient(${accent} ${3.6 * scorePct}deg, #1f2937 0deg)` };
 
   useEffect(() => {
@@ -669,7 +667,13 @@ const [ctx, setCtx] = useState<{ sector: string; country: string; stage: string 
       const enriched = enrichSegments(parsed.segments, lang);
       setSegments(enriched);
       setMissing(parsed.missing);
-      setReview({ general: data.general, detailed: data.detailed, score: data.score || 74, stage: data.stage || ctx.stage });
+      setReview({
+  general: data.general,
+  detailed: data.detailed,
+  score: data.score ?? 74,
+  stage: data.stage ?? ctx.stage,
+});
+
       const sum3 = deriveSummaryBullets(enriched, lang);
       const item = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
