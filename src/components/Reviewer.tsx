@@ -27,6 +27,7 @@ type Review = {
 
 
 
+
 // LATAM Pitch Reviewer — single‑file React app (ES/EN)
 // Fix: resolved a syntax error caused by stray/duplicated JSX after InvestorTable.
 // This rewrite is syntactically complete and self‑contained.
@@ -595,31 +596,30 @@ export async function safeCopy(text: string) {
 }
 
 // ======================= UI =======================
+// ======================= UI =======================
 export default function App() {
-// AFTER
-const [uiLang, setUiLang] = useState<Lang>("ES");
-const [file, setFile] = useState<File | null>(null);
-const [dragOver, setDragOver] = useState<boolean>(false);
-const [company, setCompany] = useState<string>("");
-const [email, setEmail] = useState<string>("");
-const [allowTraining, setAllowTraining] = useState<boolean>(true);
+  const [uiLang, setUiLang] = useState<Lang>("ES");
+  const [file, setFile] = useState<File | null>(null);
+  const [dragOver, setDragOver] = useState<boolean>(false);
+  const [company, setCompany] = useState<string>("");
+  const [email, setEmail] = useState<string>("");
+  const [allowTraining, setAllowTraining] = useState<boolean>(true);
+  const [isBusy, setIsBusy] = useState<boolean>(false);
 
-const [review, setReview] = useState<Review | null>(null);
+  const [review, setReview] = useState<Review | null>(null);
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [missing, setMissing] = useState<Array<{ section: string; why: string }>>([]);
 
-const [segments, setSegments] = useState<Segment[]>([]);
-const [missing, setMissing] = useState<Array<{ section: string; why: string }>>([]);
+  const [toast, setToast] = useState<string | null>(null);
+  const [exportUrl, setExportUrl] = useState<string | null>(null);
+  const [history, setHistory] = useState<any[]>([]);
 
-// optional but good hygiene:
-const [file, setFile] = useState<File | null>(null);
-const [toast, setToast] = useState<string | null>(null);
-const [exportUrl, setExportUrl] = useState<string | null>(null);
-const [history, setHistory] = useState<any[]>([]);
+  const [ctx, setCtx] = useState<{ sector: string; country: string; stage: string }>({
+    sector: "General",
+    country: "LATAM",
+    stage: "Pre-seed",
+  });
 
-const [ctx, setCtx] = useState<{ sector: string; country: string; stage: string }>({
-  sector: "General",
-  country: "LATAM",
-  stage: "Pre-seed",
-});
 
 
 
@@ -630,7 +630,9 @@ const [ctx, setCtx] = useState<{ sector: string; country: string; stage: string 
       ? { title: 'Entrenado en miles de decks + 30 años de experiencia VC — tu revisor para quedar listo para inversión.', sub: 'Sube tu deck y recibe una revisión con estándar inversor, enfocada en LATAM.', cta: 'Empezar' }
       : { title: 'Trained on thousands of decks + 30 years of VC craft — the Pitch Reviewer to get you investor‑ready.', sub: 'Upload your deck and receive an investor‑grade review tailored for LATAM.', cta: 'Get started now' }
   ), [uiLang]);
-  const scorePct = clamp(Number(review?.score ?? 0), 0, 100);
+  // BEFORE: const scorePct = review ? clamp(Number(review.score || 0), 0, 100) : 0;
+const scorePct = clamp(Number(review?.score ?? 0), 0, 100);
+
   const ringStyle = { background: `conic-gradient(${accent} ${3.6 * scorePct}deg, #1f2937 0deg)` };
 
   useEffect(() => {
@@ -673,6 +675,7 @@ const [ctx, setCtx] = useState<{ sector: string; country: string; stage: string 
   score: data.score ?? 74,
   stage: data.stage ?? ctx.stage,
 });
+
 
       const sum3 = deriveSummaryBullets(enriched, lang);
       const item = {
@@ -748,10 +751,14 @@ const [ctx, setCtx] = useState<{ sector: string; country: string; stage: string 
           </div>
           <div className="flex items-center gap-2">
             <label className="text-sm text-neutral-400">{STR.lang}</label>
-            <select className="bg-neutral-900 border border-neutral-800/80 rounded-xl px-3 py-2" value={uiLang} onChange={(e) => setUiLang(e.target.value)}>
-              <option value="ES">ES</option>
-              <option value="EN">EN</option>
-            </select>
+            <select
+  className="bg-neutral-900 border border-neutral-800/80 rounded-xl px-3 py-2"
+  value={uiLang}
+  onChange={(e) => setUiLang(e.target.value as Lang)}
+>
+  <option value="ES">ES</option>
+  <option value="EN">EN</option>
+</select>
           </div>
         </div></div>
 
