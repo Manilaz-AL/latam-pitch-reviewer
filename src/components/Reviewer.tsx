@@ -17,6 +17,12 @@ type Labels = Record<string, LabelValue> & {
 type LaneBuckets = { good: string[]; missing: string[]; importance: string[]; value: string[] };
 type Segment = { name: string; score: number; lanes: LaneBuckets };
 type Parsed = { segments: Segment[]; missing: Array<{ section: string; why: string }> };
+type Review = {
+  general: string;
+  detailed: string;
+  score: number;
+  stage: string;
+};
 
 
 
@@ -590,22 +596,34 @@ export async function safeCopy(text: string) {
 
 // ======================= UI =======================
 export default function App() {
-  const [uiLang, setUiLang] = useState("ES");
-  const [file, setFile] = useState(null);
-  const [dragOver, setDragOver] = useState(false);
-  const [company, setCompany] = useState("");
-  const [email, setEmail] = useState("");
-  const [allowTraining, setAllowTraining] = useState(true);
-  const [review, setReview] = useState(null);
-  const [segments, setSegments] = useState([]);
-  const [missing, setMissing] = useState([]);
-  const [_dupNote] = useState(null);
+// AFTER
+const [uiLang, setUiLang] = useState<Lang>("ES");
+const [file, setFile] = useState<File | null>(null);
+const [dragOver, setDragOver] = useState<boolean>(false);
+const [company, setCompany] = useState<string>("");
+const [email, setEmail] = useState<string>("");
+const [allowTraining, setAllowTraining] = useState<boolean>(true);
 
-  const [exportUrl, setExportUrl] = useState(null);
-  const [isBusy, setIsBusy] = useState(false);
-  const [toast, setToast] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [ctx, setCtx] = useState({ sector: "General", country: "LATAM", stage: "Pre-seed" });
+const [review, setReview] = useState<Review | null>(null);
+
+const [segments, setSegments] = useState<Segment[]>([]);
+const [missing, setMissing] = useState<Array<{ section: string; why: string }>>([]);
+
+const [dupNote] = useState<string | null>(null);
+const [exportUrl, setExportUrl] = useState<string | null>(null);
+const [isBusy, setIsBusy] = useState<boolean>(false);
+const [toast, setToast] = useState<string | null>(null);
+
+// keep history loose for now; you can tighten later
+const [history, setHistory] = useState<any[]>([]);
+
+const [ctx, setCtx] = useState<{ sector: string; country: string; stage: string }>({
+  sector: "General",
+  country: "LATAM",
+  stage: "Pre-seed",
+});
+
+
 
   const STR = useMemo(() => LBL[stableLang(uiLang)], [uiLang]);
   const accent = "#5CF2C2";
