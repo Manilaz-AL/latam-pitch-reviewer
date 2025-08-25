@@ -327,23 +327,29 @@ export function deriveSummaryBullets(
   const sorted = segments.slice().sort((a, b) => (a.score || 0) - (b.score || 0));
   const out: string[] = [];
 
-  for (const s of sorted) {
-    // ✅ make the fallback typed
-    const ln: LaneBuckets = s.lanes ?? { missing: [], good: [], importance: [], value: [] };
+ for (const s of sorted) {
+  // Normalize possibly-undefined lanes to definite string[] arrays
+  const ln: LaneBuckets = {
+    good: Array.isArray(s.lanes?.good) ? s.lanes!.good : [],
+    missing: Array.isArray(s.lanes?.missing) ? s.lanes!.missing : [],
+    importance: Array.isArray(s.lanes?.importance) ? s.lanes!.importance : [],
+    value: Array.isArray(s.lanes?.value) ? s.lanes!.value : [],
+  };
 
-    // ✅ type the array and use a type guard in the predicate
-    const pick = (arr: Array<string | undefined | null>): string | undefined =>
-      (arr ?? []).find((x): x is string => typeof x === "string" && x !== "—");
+  // Pick the first non-empty item; narrow to string
+  const pick = (arr: (string | null | undefined)[]): string | undefined =>
+    arr.find((x): x is string => !!x && x !== "—");
 
-    const txt =
-      pick(ln.missing) ||
-      pick(ln.importance) ||
-      pick(ln.value) ||
-      pick(ln.good);
+  const txt =
+    pick(ln.missing) ??
+    pick(ln.importance) ??
+    pick(ln.value) ??
+    pick(ln.good);
 
-    if (txt) out.push(`${s.name}: ${txt}`);
-    if (out.length >= 3) break;
-  }
+  if (txt) out.push(`${s.name}: ${txt}`);
+  if (out.length >= 3) break;
+}
+
   return out;
 }
 
