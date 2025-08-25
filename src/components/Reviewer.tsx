@@ -483,6 +483,7 @@ export function deriveStructuralGaps(segments: Array<{ name: string }>, lang: st
   for (const e of expected) if (!names.some((n) => e.key.test(n))) gaps.push({ section: e.label, why: e.why });
   return gaps;
 }
+// --- Investor types + data (place ABOVE suggestInvestors) ---
 type Investor = {
   name: string;
   geo: string;
@@ -497,6 +498,22 @@ type RankedInvestor = Investor & {
   matchScore: number; // 0..3
   why: string;
 };
+
+const INVESTORS: Investor[] = [
+  { name: "Fondo Andino",    geo: "Andes/LATAM",  focus: "B2B SaaS, Fintech",            stages: ["Pre-seed", "Seed"], min: 100_000, max: 600_000 },
+  { name: "Río Ventures",     geo: "Brasil/LATAM", focus: "Marketplaces, SMB SaaS",       stages: ["Pre-seed", "Seed"], min: 150_000, max: 800_000 },
+  { name: "Pacífico Capital",  geo: "México/LATAM", focus: "Fintech, Infra",               stages: ["Pre-seed", "Seed"], min: 200_000, max: 1_000_000 },
+  { name: "Pampas Partners",   geo: "Cono Sur",     focus: "AgroTech, B2B",                stages: ["Pre-seed", "Seed"], min: 100_000, max: 500_000 },
+  { name: "Caribe Labs",       geo: "Caribe",       focus: "B2C apps, Payments",           stages: ["Pre-seed", "Seed"], min: 50_000,  max: 300_000 },
+  { name: "Altiplano Ventures",geo: "Andes",        focus: "Data/AI, SaaS",                stages: ["Pre-seed", "Seed"], min: 100_000, max: 700_000 },
+];
+
+function slugifyNameToLinkedIn(name: string): string {
+  const x = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const slug = x.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  return `https://www.linkedin.com/company/${slug}`;
+}
+
 
 export function suggestInvestors(
   stage: string = "Pre-seed",
