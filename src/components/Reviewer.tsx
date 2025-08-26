@@ -3,14 +3,45 @@ import React, { useEffect, useMemo, useState } from "react";
 // ---- Label typing helpers (keep) ----
 type LabelValue = string | ((n: number) => string);
 
-type Labels = Record<string, LabelValue> & {
+// Make all label keys explicit strings; only `moreInvestors` is a function.
+type Labels = {
+  title: string;
+  subtitle: string;
+  upload: string;
+  or: string;
+  browse: string;
+  company: string;
+  email: string;
+  training: string;
+  analyse: string;
+  general: string;
+  keyfacts: string;
+  details: string;
+  segments: string;
+  missingHdr: string;
+  export: string;
+  download: string;
+  copied: string;
+  copyBlocked: string;
+  needsFile: string;
+  fallbackMock: string;
+  historyHdr: string;
+  summary: string;
+  lang: string;
+  sectionsMissing: string;
   investors: string;
   moreInvestors: (n: number) => string;
   country: string;
   focus: string;
   stage: string;
   check: string;
-  sectionsMissing: string;
+  ask: string;
+  linkedin: string;
+  whyMatch: string;
+  match: string;
+  fromDeck: string;
+  evaluation: string;
+  benchmark: string;
 };
 
 // 👇 keep only this alias – do NOT have any `type Lanes = …` in the file
@@ -19,19 +50,39 @@ type Segment = { name: string; score: number; lanes: LaneBuckets };
 type Parsed = { segments: Segment[]; missing: Array<{ section: string; why: string }> };
 type Review = { general: string; detailed: string; score: number; stage: string };
 
-// LATAM Pitch Reviewer — single-file React app (ES/EN)
+// Extra types for state/history and CSS
+type Lang = "ES" | "EN";
+
+type HistoryItem = {
+  id: string;
+  ts: number;
+  company?: string;
+  email?: string;
+  lang: Lang;
+  fileName?: string;
+  score: number;
+  stage: string;
+  trainingAllowed: boolean;
+  summary3: string[];
+  ctx: { sector: string; country: string; stage: string };
+};
+
+type CSSWithAccent = React.CSSProperties & { ["--accent"]?: string };
+
+// Allow a typed flag on window for the tiny unit tests
+declare global {
+  interface Window {
+    __LATAM_TESTS_RAN__?: boolean;
+  }
+}
 
 // ====================== Small helpers ======================
-type Lang = "ES" | "EN";
 
 /** Clamp a number between a..b */
 const clamp = (v: number, a: number, b: number): number => Math.max(a, Math.min(b, v));
 
 /** Safe stringifier */
 const S = (v: unknown): string => (v == null ? "" : String(v));
-
-/** LabelValue → string (avoids ReactNode type errors if a label is a function) */
-const t = (v: LabelValue, n = 0): string => (typeof v === "function" ? v(n) : v);
 
 /** Robust language normalizer: returns only "ES" or "EN"; defaults to EN for unknowns */
 export function stableLang(v: unknown): Lang {
@@ -77,9 +128,6 @@ const LBL: { EN: Labels; ES: Labels } = {
     fromDeck: "From the deck",
     evaluation: "Evaluation",
     benchmark: "Comparable benchmark",
-    // NEW (hero bar)
-    uploadsToday: "Uploads today",
-    uploadsCompare: "More startups are joining — see how you compare.",
   },
   ES: {
     title: "Revisor de Pitches LATAM",
@@ -119,9 +167,6 @@ const LBL: { EN: Labels; ES: Labels } = {
     fromDeck: "Del deck",
     evaluation: "Evaluación",
     benchmark: "Benchmark comparable",
-    // NEW (hero bar)
-    uploadsToday: "Cargas hoy",
-    uploadsCompare: "Cada día se suman más startups — compárate con ellas.",
   },
 };
 
@@ -345,6 +390,7 @@ export function deriveSummaryBullets(
   _lang?: string
 ): string[] {
   if (!Array.isArray(segments) || segments.length === 0) return [];
+
   const sorted = segments.slice().sort((a, b) => (a.score || 0) - (b.score || 0));
   const out: string[] = [];
 
@@ -421,7 +467,14 @@ export function deriveKeyFacts(
     },
     traction: {
       fromDeck: pickFrom(traction, L === "ES" ? "Señales tempranas" : "Early signals"),
-      evaluation: traction.score >= 7 ? (L === "ES" ? "Positiva; medir retención y payback CAC." : "Positive; measure retention and CAC payback.") : (L === "ES" ? "Insuficiente; enfocar en cohortes." : "Insufficient; focus on cohorts."),
+      evaluation:
+        traction.score >= 7
+          ? L === "ES"
+            ? "Positiva; medir retención y payback CAC."
+            : "Positive; measure retention and CAC payback."
+          : L === "ES"
+          ? "Insuficiente; enfocar en cohortes."
+          : "Insufficient; focus on cohorts.",
       benchmark: L === "ES" ? "Seed LATAM: retención M3>30% B2C / M3>70% logo B2B (referencial)." : "LATAM Seed: M3 retention >30% B2C / >70% logo B2B (indicative).",
     },
     team: {
@@ -459,6 +512,7 @@ export function deriveStructuralGaps(segments: Array<{ name: string }>, lang: st
   return gaps;
 }
 
+// --- Investor types & data ---
 type Investor = {
   name: string;
   geo: string;
@@ -492,7 +546,6 @@ function slugifyNameToLinkedIn(name: string): string {
 export function suggestInvestors(
   stage: string = "Pre-seed",
   tractionScore: number = 6,
-  _marketScore: number = 6,
   sector: string = "General",
   country: string = "LATAM"
 ): RankedInvestor[] {
@@ -521,17 +574,18 @@ export function suggestInvestors(
       why: whyFor(v),
     }));
 
+  // simple multi-pass sort
   picks.sort((a, b) => (String(a.geo).includes(country) ? -1 : 1));
   picks.sort((a, b) => (String(a.focus).toLowerCase().includes(String(sector).toLowerCase()) ? -1 : 1));
   picks.sort((a, b) => (tractionScore > 7 ? b.max - a.max : a.min - b.min));
-  picks.sort((a, b) => b.matchScore - a.matchScore);
+  picks.sort((a, b) => b.matchScore - a.matchScore); // final tie-breaker
 
   return picks;
 }
 
 export async function safeCopy(text: string) {
   try {
-    if (typeof navigator !== "undefined" && navigator.clipboard && (window as any).isSecureContext) {
+    if (typeof navigator !== "undefined" && navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(S(text));
       return true;
     }
@@ -554,41 +608,75 @@ export async function safeCopy(text: string) {
   }
 }
 
-/* ===================== Uploads Today — helpers ===================== */
+/* ---------------------- UploadsTodayBar (new, safe) ---------------------- */
 
-/** deterministic int per day (seeded) */
-function seededIntForDay(min: number, max: number): number {
-  const d = new Date();
-  const seed = `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}-${d.getUTCDate()}`;
-  let h = 2166136261;
-  for (let i = 0; i < seed.length; i++) {
-    h ^= seed.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+function seededNumberFromDate(d: Date): number {
+  // YYYYMMDD as number (UTC to keep it stable on SSR/client)
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth() + 1;
+  const day = d.getUTCDate();
+  return y * 10000 + m * 100 + day;
+}
+
+function pseudoRandom(seed: number): number {
+  // simple deterministic PRNG in [0,1)
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
+
+function estimateUploadsToday(): number {
+  const baseSeed = seededNumberFromDate(new Date());
+  const base = Math.floor(18 + pseudoRandom(baseSeed) * 55); // 18..72 baseline
+  // add a tiny within-day drift so it doesn't look constant if user stays
+  let drift = 0;
+  if (typeof window !== "undefined") {
+    const slice = Math.floor(Date.now() / (1000 * 60 * 47)); // ~47min buckets
+    drift = Math.floor(pseudoRandom(baseSeed + slice) * 6); // 0..5 extra
   }
-  const rnd = (h >>> 0) / 2 ** 32; // 0..1
-  return Math.floor(min + rnd * (max - min + 1));
-}
-const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-
-/** returns current animated count and pct for today, grows during day with slight jitter */
-function computeUploadsNow(targetLow = 28, targetHigh = 135) {
-  const target = seededIntForDay(targetLow, targetHigh);
-  const now = new Date();
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(now);
-  end.setHours(23, 59, 59, 999);
-  const progress = clamp((now.getTime() - start.getTime()) / (end.getTime() - start.getTime()), 0, 1);
-  // jitter by minute to avoid perfectly smooth growth
-  const minute = now.getMinutes();
-  const microJitter = (Math.sin(minute / 60 * Math.PI * 2) + 1) * 0.02; // 0..0.04
-  const eased = clamp(easeInOutCubic(progress) + microJitter, 0, 1);
-  const count = Math.floor(target * eased);
-  const pct = clamp(count / Math.max(1, target), 0, 1);
-  return { count, pct, target };
+  return base + drift;
 }
 
-/* ======================= UI ======================= */
+function UploadsTodayBar({ lang, accent }: { lang: Lang; accent: string }) {
+  const [count, setCount] = useState<number>(0);
+
+  useEffect(() => {
+    // client only; animate up once
+    const target = estimateUploadsToday();
+    let current = 0;
+    const step = Math.max(1, Math.floor(target / 30));
+    const id = window.setInterval(() => {
+      current = Math.min(target, current + step);
+      setCount(current);
+      if (current >= target) window.clearInterval(id);
+    }, 25);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const max = 100;
+  const pct = clamp((count / max) * 100, 0, 100);
+  const isES = stableLang(lang) === "ES";
+  const label = isES ? "Subidas hoy" : "Uploads today";
+  const note = isES
+    ? "Compárate con quienes subieron su deck hoy."
+    : "See how you stack up against today’s founders.";
+
+  return (
+    <div className="mt-6 max-w-xl mx-auto text-left">
+      <div className="flex items-baseline justify-between">
+        <div className="text-sm text-neutral-300">{label}</div>
+        <div className="text-sm text-neutral-200 font-semibold">{count}</div>
+      </div>
+      <div className="mt-2 h-2 w-full rounded-full bg-neutral-800 overflow-hidden">
+        <div className="h-full transition-[width] duration-300" style={{ width: `${pct}%`, background: accent }} />
+      </div>
+      <div className="mt-2 text-xs text-neutral-400">{note}</div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------------ */
+
+// ======================= UI =======================
 export default function App() {
   const [uiLang, setUiLang] = useState<Lang>("ES");
   const [file, setFile] = useState<File | null>(null);
@@ -604,16 +692,13 @@ export default function App() {
 
   const [toast, setToast] = useState<string | null>(null);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
 
   const [ctx, setCtx] = useState<{ sector: string; country: string; stage: string }>({
     sector: "General",
     country: "LATAM",
     stage: "Pre-seed",
   });
-
-  // NEW: uploads today state
-  const [uploads, setUploads] = useState<{ count: number; pct: number; target: number }>({ count: 0, pct: 0, target: 0 });
 
   const STR = useMemo(() => LBL[stableLang(uiLang)], [uiLang]);
   const accent = "#5CF2C2";
@@ -640,7 +725,7 @@ export default function App() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem("latam_pitch_hist") || "[]";
-      const parsed = JSON.parse(raw);
+      const parsed = JSON.parse(raw) as HistoryItem[];
       if (Array.isArray(parsed)) setHistory(parsed);
     } catch {}
   }, []);
@@ -649,22 +734,7 @@ export default function App() {
     if (file) setCtx(contextFromName(file.name || ""));
   }, [file]);
 
-  // NEW: animate uploads bar with random jitter intervals (client only)
-  useEffect(() => {
-    let alive = true;
-    const tick = () => {
-      if (!alive) return;
-      setUploads(computeUploadsNow());
-      const next = 8000 + Math.floor(Math.random() * 9000); // 8–17s
-      setTimeout(tick, next);
-    };
-    tick();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  function persistHistory(next: any[]) {
+  function persistHistory(next: HistoryItem[]) {
     setHistory(next);
     try {
       localStorage.setItem("latam_pitch_hist", JSON.stringify(next));
@@ -673,14 +743,14 @@ export default function App() {
 
   async function analyse() {
     if (!file) {
-      const msg = typeof STR.needsFile === "function" ? STR.needsFile(0) : (STR.needsFile as string);
-      setToast(msg);
+      setToast(S(STR.needsFile));
       setTimeout(() => setToast(null), 1000);
       return;
     }
     setIsBusy(true);
     const lang = stableLang(uiLang);
     try {
+      // Mock call; replace with your real backend later
       await new Promise((r) => setTimeout(r, 300));
       const data = genMock(lang, ctx);
       const parsed = parseDetailed(data.detailed);
@@ -695,13 +765,13 @@ export default function App() {
       });
 
       const sum3 = deriveSummaryBullets(enriched, lang);
-      const item = {
+      const item: HistoryItem = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
         ts: Date.now(),
         company: company || undefined,
         email: email || undefined,
         lang,
-        fileName: file && file.name,
+        fileName: file?.name,
         score: data.score || 74,
         stage: data.stage || ctx.stage,
         trainingAllowed: !!allowTraining,
@@ -709,9 +779,8 @@ export default function App() {
         ctx,
       };
       persistHistory([item, ...history].slice(0, 200));
-    } catch (_e) {
-      const msg = typeof STR.fallbackMock === "function" ? STR.fallbackMock(0) : (STR.fallbackMock as string);
-      setToast(msg);
+    } catch {
+      setToast(S(STR.fallbackMock));
     } finally {
       setIsBusy(false);
     }
@@ -727,9 +796,7 @@ export default function App() {
   async function copy(text: string) {
     if (!text) return;
     const ok = await safeCopy(S(text));
-    const okMsg = typeof STR.copied === "function" ? STR.copied(0) : (STR.copied as string);
-    const badMsg = typeof STR.copyBlocked === "function" ? STR.copyBlocked(0) : (STR.copyBlocked as string);
-    setToast(ok ? okMsg : badMsg);
+    setToast(ok ? S(STR.copied) : S(STR.copyBlocked));
     setTimeout(() => setToast(null), 1200);
   }
 
@@ -738,13 +805,12 @@ export default function App() {
   const investorList = suggestInvestors(
     review?.stage || ctx.stage,
     segments.find((s) => /Traction/i.test(s.name))?.score || 6,
-    segments.find((s) => /Market/i.test(s.name))?.score || 6,
     ctx.sector,
     ctx.country
   );
 
   // TS-safe CSS custom property for --accent
-  const uploaderStyle = { ["--accent" as any]: accent } as React.CSSProperties;
+  const uploaderStyle: CSSWithAccent = { ["--accent"]: accent };
 
   return (
     <div className="min-h-screen w-full bg-neutral-950 text-neutral-100">
@@ -767,15 +833,15 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-clip-text text-transparent [background-image:linear-gradient(90deg,#fff,rgba(92,242,194,0.9))]">
-                  {t(STR.title)}
+                  {STR.title}
                 </h1>
                 <span className="rounded-full border border-neutral-700 px-2 py-0.5 text-xs text-neutral-300">ALPHA</span>
               </div>
-              <p className="text-neutral-400 text-sm md:text-base">{t(STR.subtitle)}</p>
+              <p className="text-neutral-400 text-sm md:text-base">{STR.subtitle}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-sm text-neutral-400">{t(STR.lang)}</label>
+            <label className="text-sm text-neutral-400">{STR.lang}</label>
             <select
               className="bg-neutral-900 border border-neutral-800/80 rounded-xl px-3 py-2"
               value={uiLang}
@@ -805,21 +871,14 @@ export default function App() {
           </a>
         </div>
 
-        {/* NEW: Uploads Today bar, right under the CTA */}
-        <div className="mt-5 mx-auto max-w-xl text-left">
-          <UploadsTodayBar
-            accent={accent}
-            label={`${t(STR.uploadsToday)}: ${uploads.count}`}
-            note={t(STR.uploadsCompare)}
-            pct={uploads.pct}
-          />
-        </div>
+        {/* Uploads Today bar (new) */}
+        <UploadsTodayBar lang={uiLang} accent={accent} />
 
         <div className="mt-5 text-neutral-400 text-xs">★ ★ ★ ★ ★ 4.9 — founders love the clarity</div>
         <div className="mx-auto mt-8 h-px w-full max-w-4xl bg-gradient-to-r from-transparent via-emerald-300/30 to-transparent"></div>
       </div>
 
-      {/* separator to keep vertical rhythm, removed dashboard mock */}
+      {/* separator to keep vertical rhythm */}
       <div className="px-4">
         <div className="mx-auto max-w-6xl">
           <div className="h-px w-full bg-gradient-to-r from-transparent via-emerald-300/20 to-transparent" />
@@ -848,7 +907,7 @@ export default function App() {
               id="uploader"
               style={uploaderStyle}
             >
-              <label className="text-sm text-neutral-300 block mb-3">{t(STR.upload)}</label>
+              <label className="text-sm text-neutral-300 block mb-3">{STR.upload}</label>
               <div className="rounded-xl border border-dashed border-neutral-700 bg-neutral-950/60 p-8">
                 <div className="mb-3 flex items-center justify-center">
                   <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#5CF2C2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -860,9 +919,9 @@ export default function App() {
                 <div className="text-neutral-300">
                   {file ? <span className="text-neutral-100">{file.name}</span> : stableLang(uiLang) === "ES" ? "Suelta el archivo aquí" : "Drop file here"}
                 </div>
-                <div className="text-neutral-600 text-xs mt-3">{t(STR.or)}</div>
+                <div className="text-neutral-600 text-xs mt-3">{STR.or}</div>
                 <label className="inline-block mt-3 rounded-xl border border-neutral-700 px-3 py-2 cursor-pointer hover:bg-neutral-800 text-sm">
-                  {t(STR.browse)}
+                  {STR.browse}
                   <input
                     type="file"
                     className="hidden"
@@ -873,7 +932,7 @@ export default function App() {
               </div>
               <div className="mt-4 w-full space-y-3 text-left">
                 <div>
-                  <label className="text-sm text-neutral-300">{t(STR.company)}</label>
+                  <label className="text-sm text-neutral-300">{STR.company}</label>
                   <input
                     value={company}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCompany(e.target.value)}
@@ -882,7 +941,7 @@ export default function App() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-neutral-300">{t(STR.email)}</label>
+                  <label className="text-sm text-neutral-300">{STR.email}</label>
                   <input
                     value={email}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
@@ -892,7 +951,7 @@ export default function App() {
                 </div>
                 <label className="mt-2 flex items-center gap-2 text-sm text-neutral-300">
                   <input type="checkbox" checked={allowTraining} onChange={(e) => setAllowTraining(e.target.checked)} className="accent-[#5CF2C2]" />
-                  {t(STR.training)}
+                  {STR.training}
                 </label>
                 <button
                   onClick={analyse}
@@ -900,10 +959,10 @@ export default function App() {
                   className="mt-2 w-full rounded-2xl px-4 py-2 font-semibold shadow-md transition-transform hover:scale-[1.01]"
                   style={{ background: accent, color: "#07110E" }}
                 >
-                  {isBusy ? (stableLang(uiLang) === "ES" ? "Ejecutando…" : "Running…") : t(STR.analyse)}
+                  {isBusy ? (stableLang(uiLang) === "ES" ? "Ejecutando…" : "Running…") : STR.analyse}
                 </button>
                 <details className="mt-3 rounded-xl border border-neutral-800/80 bg-neutral-950/60 p-3">
-                  <summary className="cursor-pointer select-none text-sm text-neutral-200">{t(STR.historyHdr)}</summary>
+                  <summary className="cursor-pointer select-none text-sm text-neutral-200">{STR.historyHdr}</summary>
                   <div className="mt-2 space-y-2 text-left">
                     {history.length === 0 && <div className="text-xs text-neutral-500">{stableLang(uiLang) === "ES" ? "Sin registros aún" : "No entries yet"}</div>}
                     {history.map((h) => (
@@ -936,7 +995,7 @@ export default function App() {
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-neutral-200">{t(STR.general)}</h3>
+                  <h3 className="text-lg font-semibold text-neutral-200">{STR.general}</h3>
                   {review && (
                     <div className="text-xs text-neutral-400">
                       {(stableLang(uiLang) === "ES" ? "Etapa" : "Stage")}: {review.stage || "—"} • {ctx.sector} • {ctx.country}
@@ -959,7 +1018,7 @@ export default function App() {
 
               {segments && segments.length > 0 && (
                 <div className="mt-6">
-                  <h4 className="text-neutral-200 font-semibold mb-3">{t(STR.keyfacts)}</h4>
+                  <h4 className="text-neutral-200 font-semibold mb-3">{STR.keyfacts}</h4>
                   <div className="grid md:grid-cols-2 gap-4 text-sm">
                     <FactCardRich title={stableLang(uiLang) === "ES" ? "Valoración (compañía)" : "Company valuation"} data={facts.valuation} lang={uiLang} />
                     <FactCardRich title={stableLang(uiLang) === "ES" ? "Tracción" : "Traction"} data={facts.traction} lang={uiLang} />
@@ -973,7 +1032,7 @@ export default function App() {
 
               {segments && segments.length > 0 && (
                 <div className="mt-8">
-                  <h4 className="text-neutral-200 font-semibold mb-3">{t(STR.segments)}</h4>
+                  <h4 className="text-neutral-200 font-semibold mb-3">{STR.segments}</h4>
                   <div className="space-y-4">
                     {segments.map((s, idx) => (
                       <div key={idx} className="rounded-xl border border-neutral-800/80 bg-neutral-950/60 p-4">
@@ -993,7 +1052,7 @@ export default function App() {
 
               {review && (missing?.length > 0 || structGaps.length > 0) ? (
                 <div className="mt-8">
-                  <h4 className="text-neutral-200 font-semibold mb-3">{t(STR.sectionsMissing)}</h4>
+                  <h4 className="text-neutral-200 font-semibold mb-3">{STR.sectionsMissing}</h4>
                   <div className="rounded-xl border border-neutral-800/80 bg-neutral-950/60 p-4">
                     <ul className="space-y-2 text-sm text-neutral-300 list-disc pl-5">
                       {missing.map((m, i) => (
@@ -1013,7 +1072,7 @@ export default function App() {
 
               {segments && segments.length > 0 && (
                 <div className="mt-8">
-                  <h4 className="text-neutral-200 font-semibold mb-3">{t(STR.investors)}</h4>
+                  <h4 className="text-neutral-200 font-semibold mb-3">{STR.investors}</h4>
                   <InvestorTable lang={uiLang} investors={investorList} />
                 </div>
               )}
@@ -1031,11 +1090,11 @@ export default function App() {
                   className="rounded-xl px-3 py-2 font-semibold shadow-md"
                   style={{ background: review ? "#5CF2C2" : "#2a2f35", color: review ? "#07110E" : "#6b7280" }}
                 >
-                  {t(STR.export)}
+                  {STR.export}
                 </button>
                 {exportUrl ? (
                   <a href={exportUrl} download={`review-${Date.now()}.md`} className="rounded-xl px-3 py-2 border border-neutral-700 hover:bg-neutral-800 text-sm">
-                    {t(STR.download)}
+                    {STR.download}
                   </a>
                 ) : null}
               </div>
@@ -1077,25 +1136,25 @@ function FactCardRich({
       <div className="text-neutral-300 text-xs">{title}</div>
       <div className="mt-2 grid gap-2">
         <div>
-          <div className="text-neutral-400 text-[11px] uppercase tracking-wide">{t(lbl.fromDeck)}</div>
+          <div className="text-neutral-400 text-[11px] uppercase tracking-wide">{lbl.fromDeck}</div>
           <ul className="text-neutral-100 text-sm list-disc pl-5">
-            {(data.fromDeck || []).slice(0, 2).map((t1, i) => (
-              <li key={i}>{t1}</li>
+            {(data.fromDeck || []).slice(0, 2).map((t, i) => (
+              <li key={i}>{t}</li>
             ))}
           </ul>
         </div>
         <div>
-          <div className="text-neutral-400 text-[11px] uppercase tracking-wide">{t(lbl.evaluation)}</div>
+          <div className="text-neutral-400 text-[11px] uppercase tracking-wide">{lbl.evaluation}</div>
           <div className="text-neutral-100 text-sm">{data.evaluation}</div>
         </div>
         {data.ask && (
           <div>
-            <div className="text-neutral-400 text-[11px] uppercase tracking-wide">{t(lbl.ask)}</div>
+            <div className="text-neutral-400 text-[11px] uppercase tracking-wide">{lbl.ask}</div>
             <div className="text-neutral-100 text-sm">{Array.isArray(data.ask) ? data.ask.join(" • ") : data.ask}</div>
           </div>
         )}
         <div>
-          <div className="text-neutral-400 text-[11px] uppercase tracking-wide">{t(lbl.benchmark)}</div>
+          <div className="text-neutral-400 text-[11px] uppercase tracking-wide">{lbl.benchmark}</div>
           <div className="text-neutral-100 text-sm">{data.benchmark}</div>
         </div>
       </div>
@@ -1161,14 +1220,14 @@ function InvestorTable({ lang, investors }: { lang: string; investors: RankedInv
         <table className="w-full text-sm">
           <thead className="text-neutral-400">
             <tr className="text-left">
-              <th className="py-2 pr-3">{t(lbl.match)}</th>
+              <th className="py-2 pr-3">{lbl.match}</th>
               <th className="py-2 pr-3">Investor</th>
-              <th className="py-2 pr-3">{t(lbl.linkedin)}</th>
-              <th className="py-2 pr-3">{t(lbl.country)}</th>
-              <th className="py-2 pr-3">{t(lbl.focus)}</th>
-              <th className="py-2 pr-3">{t(lbl.stage)}</th>
-              <th className="py-2 pr-3">{t(lbl.check)}</th>
-              <th className="py-2 pr-3">{t(lbl.whyMatch)}</th>
+              <th className="py-2 pr-3">{lbl.linkedin}</th>
+              <th className="py-2 pr-3">{lbl.country}</th>
+              <th className="py-2 pr-3">{lbl.focus}</th>
+              <th className="py-2 pr-3">{lbl.stage}</th>
+              <th className="py-2 pr-3">{lbl.check}</th>
+              <th className="py-2 pr-3">{lbl.whyMatch}</th>
             </tr>
           </thead>
           <tbody className="text-neutral-200">
@@ -1183,7 +1242,7 @@ function InvestorTable({ lang, investors }: { lang: string; investors: RankedInv
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                       <path d="M4.98 3.5C4.98 4.88 3.86 6 2.5 6S0 4.88 0 3.5 1.12 1 2.5 1s2.48 1.12 2.48 2.5zM.5 8.5h4V23h-4V8.5zM8.5 8.5h3.8v2h.05c.53-1 1.84-2.05 3.8-2.05 4.06 0 4.8 2.67 4.8 6.14V23h-4v-6.5c0-1.55-.03-3.55-2.17-3.55-2.18 0-2.52 1.7-2.52 3.45V23h-4V8.5z" />
                     </svg>
-                    {t(lbl.linkedin)}
+                    {lbl.linkedin}
                   </a>
                 </td>
                 <td className="py-2 pr-3">{v.geo}</td>
@@ -1198,40 +1257,9 @@ function InvestorTable({ lang, investors }: { lang: string; investors: RankedInv
       </div>
       {hidden.length > 0 && (
         <div className="mt-3 relative">
-          <div className="rounded-lg border border-dashed border-neutral-700 bg-neutral-900/50 p-4 text-center text-neutral-400">{t(LBL[L].moreInvestors, hidden.length)}</div>
+          <div className="rounded-lg border border-dashed border-neutral-700 bg-neutral-900/50 p-4 text-center text-neutral-400">{LBL[L].moreInvestors(hidden.length)}</div>
         </div>
       )}
-    </div>
-  );
-}
-
-/* =========== NEW: Uploads Today bar component =========== */
-function UploadsTodayBar({
-  pct,
-  label,
-  note,
-  accent,
-}: {
-  pct: number;
-  label: string;
-  note: string;
-  accent: string;
-}) {
-  return (
-    <div className="rounded-xl border border-neutral-800/80 bg-neutral-950/70 p-3">
-      <div className="flex items-center justify-between text-xs text-neutral-300">
-        <span className="font-medium">{label}</span>
-        <span className="text-neutral-400">{note}</span>
-      </div>
-      <div className="mt-2 h-2 w-full rounded-full bg-neutral-800 overflow-hidden">
-        <div
-          className="h-full transition-[width] duration-700 ease-out"
-          style={{
-            width: `${Math.max(2, Math.floor(pct * 100))}%`,
-            background: `linear-gradient(90deg, ${accent}, #9FFFE4)`,
-          }}
-        />
-      </div>
     </div>
   );
 }
@@ -1259,16 +1287,16 @@ export function runUnitTests() {
   const p2 = parseDetailed(weird);
   console.assert(p2.segments.length === 1 && p2.segments[0].lanes.missing[0] === "b", "trailing pipe ignored");
 
-  const inv = suggestInvestors("Pre-seed", 8, 6, "Fintech", "México");
+  const inv = suggestInvestors("Pre-seed", 8, "Fintech", "México");
   console.assert(inv.length >= 3, "investors >=3");
   console.assert(inv[0].linkedin && /^https:\/\/www.linkedin.com\//.test(inv[0].linkedin), "linkedin url present");
   console.assert(typeof inv[0].why === "string", "why present");
   console.assert(typeof inv[0].matchScore === "number", "matchScore present");
   return true;
 }
-if (typeof window !== "undefined" && !(window as any).__LATAM_TESTS_RAN__) {
+if (typeof window !== "undefined" && !window.__LATAM_TESTS_RAN__) {
   try {
-    (window as any).__LATAM_TESTS_RAN__ = true;
+    window.__LATAM_TESTS_RAN__ = true;
     runUnitTests();
   } catch (e) {
     console.error("Tests failed", e);
