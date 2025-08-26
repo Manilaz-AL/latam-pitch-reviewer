@@ -1,26 +1,27 @@
+// app/api/upload/route.ts
 import { NextResponse } from "next/server";
-
-// Simple in-memory counter (resets on deploy, free for now)
-let uploadsToday = 0;
+import { getState } from "@/lib/runtimeState";
 
 // Handle POST /api/upload
 export async function POST(req: Request) {
   try {
-    // For now, we don’t actually save the file — just pretend
-    uploadsToday++;
+    // (Future) read FormData + file; for now we only bump the counter
+    const state = getState();
+    state.uploadsToday += 1;
 
-    // Example fake review result
+    // Example fake review result to keep the front-end flowing
     const mockReview = {
       score: 74,
       stage: "Pre-seed",
       general: "> **Score:** 74/100 — Clear problem/solution, early traction.",
-      detailed: "| Section | Score | Improvement |\n|---------|-------|-------------|\n| Market  | 5/10  | Add SOM by country |",
+      detailed:
+        "| Section | Score | Improvement |\n|---------|-----:|-------------|\n| Market | 5 | Add SOM by country |",
     };
 
     return NextResponse.json({
       ok: true,
       review: mockReview,
-      uploadsToday,
+      uploadsToday: state.uploadsToday,
     });
   } catch (err) {
     console.error(err);
