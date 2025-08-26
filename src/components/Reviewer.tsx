@@ -19,6 +19,7 @@ type Segment = { name: string; score: number; lanes: LaneBuckets };
 type Parsed = { segments: Segment[]; missing: Array<{ section: string; why: string }> };
 type Review = { general: string; detailed: string; score: number; stage: string };
 
+
 // Extra types for state/history and CSS
 type Lang = "ES" | "EN";
 
