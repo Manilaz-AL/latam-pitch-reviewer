@@ -19,10 +19,33 @@ type Segment = { name: string; score: number; lanes: LaneBuckets };
 type Parsed = { segments: Segment[]; missing: Array<{ section: string; why: string }> };
 type Review = { general: string; detailed: string; score: number; stage: string };
 
-// LATAM Pitch Reviewer — single-file React app (ES/EN)
+// Extra types for state/history and CSS
+type Lang = "ES" | "EN";
+
+type HistoryItem = {
+  id: string;
+  ts: number;
+  company?: string;
+  email?: string;
+  lang: Lang;
+  fileName?: string;
+  score: number;
+  stage: string;
+  trainingAllowed: boolean;
+  summary3: string[];
+  ctx: { sector: string; country: string; stage: string };
+};
+
+type CSSWithAccent = React.CSSProperties & { ["--accent"]?: string };
+
+// Allow a typed flag on window for the tiny unit tests
+declare global {
+  interface Window {
+    __LATAM_TESTS_RAN__?: boolean;
+  }
+}
 
 // ====================== Small helpers ======================
-type Lang = "ES" | "EN";
 
 /** Clamp a number between a..b */
 const clamp = (v: number, a: number, b: number): number => Math.max(a, Math.min(b, v));
@@ -336,6 +359,7 @@ export function deriveSummaryBullets(
   _lang?: string
 ): string[] {
   if (!Array.isArray(segments) || segments.length === 0) return [];
+
   const sorted = segments.slice().sort((a, b) => (a.score || 0) - (b.score || 0));
   const out: string[] = [];
 
@@ -412,7 +436,14 @@ export function deriveKeyFacts(
     },
     traction: {
       fromDeck: pickFrom(traction, L === "ES" ? "Señales tempranas" : "Early signals"),
-      evaluation: traction.score >= 7 ? (L === "ES" ? "Positiva; medir retención y payback CAC." : "Positive; measure retention and CAC payback.") : (L === "ES" ? "Insuficiente; enfocar en cohortes." : "Insufficient; focus on cohorts."),
+      evaluation:
+        traction.score >= 7
+          ? L === "ES"
+            ? "Positiva; medir retención y payback CAC."
+            : "Positive; measure retention and CAC payback."
+          : L === "ES"
+          ? "Insuficiente; enfocar en cohortes."
+          : "Insufficient; focus on cohorts.",
       benchmark: L === "ES" ? "Seed LATAM: retención M3>30% B2C / M3>70% logo B2B (referencial)." : "LATAM Seed: M3 retention >30% B2C / >70% logo B2B (indicative).",
     },
     team: {
@@ -450,6 +481,7 @@ export function deriveStructuralGaps(segments: Array<{ name: string }>, lang: st
   return gaps;
 }
 
+// --- Investor types & data ---
 type Investor = {
   name: string;
   geo: string;
@@ -483,7 +515,6 @@ function slugifyNameToLinkedIn(name: string): string {
 export function suggestInvestors(
   stage: string = "Pre-seed",
   tractionScore: number = 6,
-  _marketScore: number = 6,
   sector: string = "General",
   country: string = "LATAM"
 ): RankedInvestor[] {
@@ -512,10 +543,11 @@ export function suggestInvestors(
       why: whyFor(v),
     }));
 
+  // simple multi-pass sort
   picks.sort((a, b) => (String(a.geo).includes(country) ? -1 : 1));
   picks.sort((a, b) => (String(a.focus).toLowerCase().includes(String(sector).toLowerCase()) ? -1 : 1));
   picks.sort((a, b) => (tractionScore > 7 ? b.max - a.max : a.min - b.min));
-  picks.sort((a, b) => b.matchScore - a.matchScore);
+  picks.sort((a, b) => b.matchScore - a.matchScore); // final tie-breaker
 
   return picks;
 }
@@ -561,7 +593,7 @@ export default function App() {
 
   const [toast, setToast] = useState<string | null>(null);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
 
   const [ctx, setCtx] = useState<{ sector: string; country: string; stage: string }>({
     sector: "General",
@@ -594,7 +626,7 @@ export default function App() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem("latam_pitch_hist") || "[]";
-      const parsed = JSON.parse(raw);
+      const parsed = JSON.parse(raw) as HistoryItem[];
       if (Array.isArray(parsed)) setHistory(parsed);
     } catch {}
   }, []);
@@ -603,7 +635,7 @@ export default function App() {
     if (file) setCtx(contextFromName(file.name || ""));
   }, [file]);
 
-  function persistHistory(next: any[]) {
+  function persistHistory(next: HistoryItem[]) {
     setHistory(next);
     try {
       localStorage.setItem("latam_pitch_hist", JSON.stringify(next));
@@ -619,6 +651,7 @@ export default function App() {
     setIsBusy(true);
     const lang = stableLang(uiLang);
     try {
+      // Mock call; replace with your real backend later
       await new Promise((r) => setTimeout(r, 300));
       const data = genMock(lang, ctx);
       const parsed = parseDetailed(data.detailed);
@@ -633,13 +666,13 @@ export default function App() {
       });
 
       const sum3 = deriveSummaryBullets(enriched, lang);
-      const item = {
+      const item: HistoryItem = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
         ts: Date.now(),
         company: company || undefined,
         email: email || undefined,
         lang,
-        fileName: file && file.name,
+        fileName: file?.name,
         score: data.score || 74,
         stage: data.stage || ctx.stage,
         trainingAllowed: !!allowTraining,
@@ -647,7 +680,7 @@ export default function App() {
         ctx,
       };
       persistHistory([item, ...history].slice(0, 200));
-    } catch (_e) {
+    } catch {
       setToast(STR.fallbackMock);
     } finally {
       setIsBusy(false);
@@ -673,13 +706,12 @@ export default function App() {
   const investorList = suggestInvestors(
     review?.stage || ctx.stage,
     segments.find((s) => /Traction/i.test(s.name))?.score || 6,
-    segments.find((s) => /Market/i.test(s.name))?.score || 6,
     ctx.sector,
     ctx.country
   );
 
   // TS-safe CSS custom property for --accent
-  const uploaderStyle = { ["--accent" as any]: accent } as React.CSSProperties;
+  const uploaderStyle: CSSWithAccent = { ["--accent"]: accent };
 
   return (
     <div className="min-h-screen w-full bg-neutral-950 text-neutral-100">
@@ -838,7 +870,7 @@ export default function App() {
                         </div>
                         {Array.isArray(h.summary3) && h.summary3.length > 0 && (
                           <ul className="mt-2 text-xs text-neutral-400 list-disc pl-4">
-                            {h.summary3.slice(0, 3).map((b: string, i: number) => (
+                            {h.summary3.slice(0, 3).map((b, i) => (
                               <li key={i}>{b}</li>
                             ))}
                           </ul>
@@ -1152,16 +1184,16 @@ export function runUnitTests() {
   const p2 = parseDetailed(weird);
   console.assert(p2.segments.length === 1 && p2.segments[0].lanes.missing[0] === "b", "trailing pipe ignored");
 
-  const inv = suggestInvestors("Pre-seed", 8, 6, "Fintech", "México");
+  const inv = suggestInvestors("Pre-seed", 8, "Fintech", "México");
   console.assert(inv.length >= 3, "investors >=3");
   console.assert(inv[0].linkedin && /^https:\/\/www.linkedin.com\//.test(inv[0].linkedin), "linkedin url present");
   console.assert(typeof inv[0].why === "string", "why present");
   console.assert(typeof inv[0].matchScore === "number", "matchScore present");
   return true;
 }
-if (typeof window !== "undefined" && !(window as any).__LATAM_TESTS_RAN__) {
+if (typeof window !== "undefined" && !window.__LATAM_TESTS_RAN__) {
   try {
-    (window as any).__LATAM_TESTS_RAN__ = true;
+    window.__LATAM_TESTS_RAN__ = true;
     runUnitTests();
   } catch (e) {
     console.error("Tests failed", e);
